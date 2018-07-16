@@ -23,6 +23,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 
+from model.ops import causal_conv1d
+
 def build_placeholders(input_channels):
     """."""
     x = tf.placeholder(dtype=tf.float32, shape=(None, None, input_channels))
@@ -30,20 +32,9 @@ def build_placeholders(input_channels):
 
     return x,y
 
-def temporally_shifted_conv1d(inputs, filters, kernel_size, dilation_rate=1):
-    """."""
-    padding = (kernel_size-1)*dilation_rate
-
-    net = tf.layers.conv1d(
-        inputs=inputs, filters=filters,
-        kernel_size=kernel_size, dilation_rate=dilation_rate
-    )
-
-    return tf.pad(net, ((0, 0), (padding, 0), (0, 0)), name='shifted')
-
 def build_residual(inputs, filters, kernel_size, dilation_rate):
     """."""
-    branch = temporally_shifted_conv1d(
+    branch = causal_conv1d(
         inputs=inputs,
         filters=2*filters,
         kernel_size=kernel_size,
@@ -63,7 +54,7 @@ def build_inference(inputs, filters, kernel_size, dilation_powers, output_channe
     net = inputs
 
     with tf.variable_scope('input'):
-        net = temporally_shifted_conv1d(inputs=net, filters=filters, kernel_size=kernel_size)
+        net = causal_conv1d(inputs=net, filters=filters, kernel_size=kernel_size)
 
     residuals = []
     for i, dilation_power in enumerate(dilation_powers):
