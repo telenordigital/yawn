@@ -24,7 +24,7 @@ import numpy as np
 import tensorflow as tf
 
 from model.ops import causal_conv1d
-from model.wavenet_model import building_block, output_block
+from model.wavenet_model import building_block, output_block, WaveNetModel
 
 def build_placeholders(input_channels):
     """."""
@@ -32,32 +32,6 @@ def build_placeholders(input_channels):
     y = tf.placeholder(dtype=tf.int32, shape=(None, None, 1))
 
     return x,y
-
-def build_inference(inputs, filters, kernel_size, dilation_powers, output_channels):
-    """."""
-    net = inputs
-
-    with tf.variable_scope('input'):
-        net = causal_conv1d(inputs=net, filters=filters, kernel_size=kernel_size)
-
-    residuals = []
-    for i, dilation_power in enumerate(dilation_powers):
-        dilation_rate = kernel_size**dilation_power
-
-        with tf.variable_scope('residual_{}_{}'.format(i, dilation_rate)):
-            residual = building_block(
-                inputs=net, kernel_size=kernel_size,
-                dilation_rate=dilation_rate,
-                data_format='channels_last'
-            )
-
-            net += residual
-            residuals.append(residual)
-
-    with tf.variable_scope('output'):
-        net = output_block(residuals, output_channels, data_format='channels_last')
-
-    return net
 
 def build_loss(labels, logits):
     """."""
@@ -67,13 +41,17 @@ def build_train_op(loss, learning_rate=1e-2):
     """."""
     return tf.train.AdamOptimizer(learning_rate).minimize(loss)
 
-def build_model(input_channels, output_channels, filters, kernel_size, dilation_powers):
+def build_model(input_channels, output_channels, filters, kernel_size, dilations):
     """."""
     with tf.variable_scope('inputs'):
         inputs, labels = build_placeholders(input_channels)
 
     with tf.variable_scope('inference'):
-        logits = build_inference(inputs, filters, kernel_size, dilation_powers, output_channels)
+        model = WaveNetModel(
+            filters=filters, kernel_size=kernel_size,
+            dilations=dilations, output_channels=output_channels
+        )
+        logits = model(inputs)
 
     with tf.variable_scope('loss'):
         loss = build_loss(labels, logits)
@@ -151,6 +129,7 @@ def main():
     kernel_size = 2
 
     dilation_powers = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+    dilations = [kernel_size**power for power in dilation_powers]
 
     dataset_size = 100000
     data = np.sin(np.linspace(-256*np.pi, 256*np.pi, dataset_size+1))
@@ -167,11 +146,12 @@ def main():
 
     graph = tf.Graph()
     with graph.as_default():
-        m = build_model(input_channels, output_channels, filters, kernel_size, dilation_powers)
-    graph.finalize()
+        m = build_model(input_channels, output_channels, filters, kernel_size, dilations)
     report_parameters(graph=graph)
 
     with tf.Session(graph=graph) as session:
+        graph.finalize()
+
         session.run(m['init'])
 
         plt.ion()

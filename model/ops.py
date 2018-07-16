@@ -49,8 +49,8 @@ def causal_conv1d(inputs,
     the output is shifted such that a causal relationship is maintained
     along the data axis.
 
-    If the 'channels_last' data_format is used this means that each outputs[:,i,:]
-    may depend at most on the previous i inputs, inputs[:,:1+i,:].
+    If the `channels_last` data_format is used this means that each `outputs[:,i,:]`
+    may depend at most on the previous `i` inputs, `inputs[:,:1+i,:]`.
 
     The output is padded after the activation function has been applied to the output.
 

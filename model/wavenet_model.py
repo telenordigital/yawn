@@ -56,9 +56,10 @@ def building_block(inputs, kernel_size, data_format, dilation_rate):
     shape = inputs.shape.as_list()
 
     if data_format == 'channels_last':
-        filters = shape[2]
+        channel_axis = 2
     elif data_format == 'channels_first':
-        filters = shape[1]
+        channel_axis = 1
+    filters = shape[channel_axis]
 
     branch = causal_conv1d(
         inputs=inputs,
@@ -68,10 +69,10 @@ def building_block(inputs, kernel_size, data_format, dilation_rate):
     )
 
     with tf.variable_scope('filter_and_gate'):
-        f, g = tf.split(branch, 2, axis=-1)
-        f, g = tf.tanh(f), tf.sigmoid(g)
+        f, g = tf.split(branch, 2, axis=channel_axis)
+        f, g = tf.tanh(f, name='filter'), tf.sigmoid(g, name='gate')
 
-        branch = tf.multiply(f, g)
+        branch = tf.multiply(f, g, name='activation')
 
     return tf.layers.conv1d(inputs=branch, filters=filters, kernel_size=1, name='1x1')
 
@@ -123,3 +124,73 @@ def output_block(skip_connections, output_channels, data_format, activation=tf.n
     )
 
     return outputs
+
+class WaveNetModel(object):
+    """Base class for building a WaveNet model."""
+
+    def __init__(self, filters, kernel_size, dilations, output_channels, data_format=None):
+        """Creates a WaveNet model.
+
+        Arguments:
+          filters: Integer number of filters to use for the residual and skip-connection blocks.
+          kernel_size: An integer or tuple/list of a single integer, specifying the
+            length of the 1D convolution windows.
+          dilations: List of integers, dilation factor for each separate layers.
+            The length of this list also determines the number of layers.
+          output_channels: Integer number of outputs.
+          data_format: A string, one of `channels_last` (default) or `channels_first`.
+            The ordering of the dimensions in the inputs.
+            `channels_last` corresponds to inputs with shape
+            `(batch, length, channels)` while `channels_first` corresponds to
+            inputs with shape `(batch, channels, length)`.
+        """
+        self.data_format = data_format
+        if self.data_format is None:
+            self.data_format = 'channels_last'
+
+        self.filters = filters
+        self.kernel_size = kernel_size
+        self.dilations = dilations
+        self.output_channels = output_channels
+
+    def __call__(self, inputs, training=False):
+        """Adds operations to the current graph for the logit output.
+
+        Arguments:
+          inputs: A tensor of size
+            [batch, length, channels] if data format was set to `channels_last` or
+            [batch, channels, length] if data format was set to `channels_first`.
+          training: Boolean to indicate if the model is meant to be used for training.
+        Returns:
+          A `logits` tensor representing unscaled log-probabilities of size
+            [batch, length, output_channels] if data format was set to `channels_last` or
+            [batch, output_channels, length] if data format was set to `channels_first`.
+        """
+        net = inputs
+
+        # Currently unused
+        _ = training
+
+        with tf.variable_scope('initial'):
+            net = causal_conv1d(
+                inputs=net, filters=self.filters,
+                kernel_size=self.kernel_size, dilation_rate=1,
+                data_format=self.data_format
+            )
+
+        skip_connections = []
+        for i, dilation_rate in enumerate(self.dilations):
+            with tf.variable_scope('block_{}_{}'.format(i, dilation_rate)):
+                residual = building_block(
+                    inputs=net, kernel_size=self.kernel_size,
+                    dilation_rate=dilation_rate,
+                    data_format=self.data_format
+                )
+
+                net += residual
+                skip_connections.append(residual)
+
+        with tf.variable_scope('output'):
+            net = output_block(skip_connections, self.output_channels, data_format=self.data_format)
+
+        return net
