@@ -50,7 +50,7 @@ def causal_conv1d(inputs,
     along the data axis.
 
     If the 'channels_last' data_format is used this means that each outputs[:,i,:]
-    may only depend on the previous inputs[:,:1+i,:].
+    may depend at most on the previous i inputs, inputs[:,:1+i,:].
 
     The output is padded after the activation function has been applied to the output.
 
@@ -67,8 +67,6 @@ def causal_conv1d(inputs,
         inputs with shape `(batch, channels, length)`.
       dilation_rate: An integer or tuple/list of a single integer, specifying
         the dilation rate to use for dilated convolution.
-        Currently, specifying any `dilation_rate` value != 1 is
-        incompatible with specifying any `strides` value != 1.
       padding_value: Value to pad output with, it is added after the activation
         function has been applied.
       activation: Activation function. Set it to None to maintain a
@@ -94,7 +92,7 @@ def causal_conv1d(inputs,
       reuse: Boolean, whether to reuse the weights of a previous layer
         by the same name.
     Returns:
-      Output tensor.
+      Causally padded tensor.
     """
     if data_format not in SUPPORTED_DATA_FORMATS:
         raise ValueError('Data format {} not supported'.format(data_format))

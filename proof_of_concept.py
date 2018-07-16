@@ -24,6 +24,7 @@ import numpy as np
 import tensorflow as tf
 
 from model.ops import causal_conv1d
+from model.wavenet_model import building_block
 
 def build_placeholders(input_channels):
     """."""
@@ -31,23 +32,6 @@ def build_placeholders(input_channels):
     y = tf.placeholder(dtype=tf.int32, shape=(None, None, 1))
 
     return x,y
-
-def build_residual(inputs, filters, kernel_size, dilation_rate):
-    """."""
-    branch = causal_conv1d(
-        inputs=inputs,
-        filters=2*filters,
-        kernel_size=kernel_size,
-        dilation_rate=dilation_rate
-    )
-
-    with tf.variable_scope('filter_and_gate'):
-        f, g = tf.split(branch, 2, axis=-1)
-        f, g = tf.tanh(f), tf.sigmoid(g)
-
-        branch = tf.multiply(f, g)
-
-    return tf.layers.conv1d(inputs=branch, filters=filters, kernel_size=1, name='1x1')
 
 def build_inference(inputs, filters, kernel_size, dilation_powers, output_channels):
     """."""
@@ -61,9 +45,10 @@ def build_inference(inputs, filters, kernel_size, dilation_powers, output_channe
         dilation_rate = kernel_size**dilation_power
 
         with tf.variable_scope('residual_{}_{}'.format(i, dilation_rate)):
-            residual = build_residual(
-                inputs=net, filters=filters, kernel_size=kernel_size,
-                dilation_rate=dilation_rate
+            residual = building_block(
+                inputs=net, kernel_size=kernel_size,
+                dilation_rate=dilation_rate,
+                data_format='channels_last'
             )
 
             net += residual
@@ -127,7 +112,7 @@ def report_parameters(graph):
         print('{tvar.name} : {tvar.shape}, {parameters}'.format(tvar=tvar, parameters=parameters))
         total_parameters += parameters
 
-    print('=== Total parameters={} ==='.format(total_parameters))
+    print('=== Total parameters : {} ==='.format(total_parameters))
 
 def quantize(data, bins, right=True):
     """."""
