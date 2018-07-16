@@ -28,7 +28,7 @@ from model.wavenet_model import building_block, output_block, WaveNetModel
 
 def build_placeholders(input_channels):
     """."""
-    x = tf.placeholder(dtype=tf.float32, shape=(None, None, input_channels))
+    x = tf.placeholder(dtype=tf.float32, shape=(None, input_channels, None))
     y = tf.placeholder(dtype=tf.int32, shape=(None, None, 1))
 
     return x,y
@@ -49,9 +49,11 @@ def build_model(input_channels, output_channels, filters, kernel_size, dilations
     with tf.variable_scope('inference'):
         model = WaveNetModel(
             filters=filters, kernel_size=kernel_size,
-            dilations=dilations, output_channels=output_channels
+            dilations=dilations, output_channels=output_channels,
+            data_format='channels_first'
         )
         logits = model(inputs)
+        logits = tf.transpose(logits, [0, 2, 1])
 
     with tf.variable_scope('loss'):
         loss = build_loss(labels, logits)
@@ -100,7 +102,7 @@ def train_iteration(session, m, data, labels, batch_num, batch_size):
     train_data = []
     train_labels = []
     for index in indices:
-        train_data.append(data[index:index+batch_size].reshape(-1, 1))
+        train_data.append(data[index:index+batch_size].reshape(1, -1))
         train_labels.append(labels[index:index+batch_size].reshape(-1, 1))
 
     loss, _ = session.run(
@@ -115,7 +117,7 @@ def train_iteration(session, m, data, labels, batch_num, batch_size):
 
 def generate(session, m, values):
     """."""
-    predictions = session.run(m['logits'], feed_dict={m['x'] : values.reshape(1, -1, 1)})
+    predictions = session.run(m['logits'], feed_dict={m['x'] : values.reshape(1, 1, -1)})
     predictions = np.argmax(predictions[0], axis=-1)
 
     return predictions[-1]

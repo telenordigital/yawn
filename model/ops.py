@@ -105,7 +105,7 @@ def causal_conv1d(inputs,
     if data_format == 'channels_last':
         paddings = ((0, 0), (required_padding, 0), (0, 0))
     elif data_format == 'channels_first':
-        paddings = ((0, 0), (0, 0), (required_padding))
+        paddings = ((0, 0), (0, 0), (required_padding, 0))
 
     tensor = tf.layers.conv1d(
         inputs=inputs,

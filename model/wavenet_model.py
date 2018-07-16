@@ -65,7 +65,8 @@ def building_block(inputs, kernel_size, data_format, dilation_rate):
         inputs=inputs,
         filters=2*filters,
         kernel_size=kernel_size,
-        dilation_rate=dilation_rate
+        dilation_rate=dilation_rate,
+        data_format=data_format
     )
 
     with tf.variable_scope('filter_and_gate'):
@@ -74,7 +75,10 @@ def building_block(inputs, kernel_size, data_format, dilation_rate):
 
         branch = tf.multiply(f, g, name='activation')
 
-    return tf.layers.conv1d(inputs=branch, filters=filters, kernel_size=1, name='1x1')
+    return tf.layers.conv1d(
+        inputs=branch, filters=filters, kernel_size=1,
+        data_format=data_format, name='1x1'
+    )
 
 def output_block(skip_connections, output_channels, data_format, activation=tf.nn.relu):
     """The WaveNet output block.
