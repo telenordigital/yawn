@@ -37,7 +37,7 @@ def building_block(inputs, kernel_size, data_format, dilation_rate):
       by Aaron van den Oord, Sander Dieleman, Heiga Zen, Karen Simonyan, Oriol Vinyals,
       Alex Graves, Nal Kalchbrenner, Andrew Senior, Koray Kavukcuoglu
 
-    The number of filters to use is induced from the input.
+    The number of filters to use is deduced from the input.
 
     Arguments:
       inputs: Tensor input.
@@ -74,3 +74,52 @@ def building_block(inputs, kernel_size, data_format, dilation_rate):
         branch = tf.multiply(f, g)
 
     return tf.layers.conv1d(inputs=branch, filters=filters, kernel_size=1, name='1x1')
+
+def output_block(skip_connections, output_channels, data_format, activation=tf.nn.relu):
+    """The WaveNet output block.
+
+    Adds up and convolves over the skip connections to produce
+    output predictions as defined in section 2.4 of:
+      WaveNet: A Generative Model for Raw Audio.
+      https://arxiv.org/pdf/1609.03499.pdf
+      by Aaron van den Oord, Sander Dieleman, Heiga Zen, Karen Simonyan, Oriol Vinyals,
+      Alex Graves, Nal Kalchbrenner, Andrew Senior, Koray Kavukcuoglu
+
+    The output comes in the form of unscaled log-probabilities.
+
+    Arguments:
+      skip_connections: List of tensors corresponding to skip contributions.
+      output_channels: Integer or tuple/list of single integer, specifying the
+        number of channels in the output prediction tensor.
+      data_format: A string, one of `channels_last` (default) or `channels_first`.
+        The ordering of the dimensions in the inputs.
+        `channels_last` corresponds to inputs with shape
+        `(batch, length, channels)` while `channels_first` corresponds to
+        inputs with shape `(batch, channels, length)`.
+      activation: Which activation function use, defaults to tf.nn.relu.
+    Returns:
+      Unscaled log probabilities.
+    """
+    outputs = tf.add_n(skip_connections)
+    outputs = activation(outputs)
+
+    shape = outputs.shape.as_list()
+
+    if data_format == 'channels_last':
+        filters = shape[2]
+    elif data_format == 'channels_first':
+        filters = shape[1]
+
+    outputs = tf.layers.conv1d(
+        inputs=outputs, filters=filters, kernel_size=1,
+        data_format=data_format, activation=activation,
+        name='1x1'
+    )
+
+    outputs = tf.layers.conv1d(
+        inputs=outputs, filters=output_channels, kernel_size=1,
+        data_format=data_format, activation=None,
+        name='logits'
+    )
+
+    return outputs

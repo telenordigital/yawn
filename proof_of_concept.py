@@ -24,7 +24,7 @@ import numpy as np
 import tensorflow as tf
 
 from model.ops import causal_conv1d
-from model.wavenet_model import building_block
+from model.wavenet_model import building_block, output_block
 
 def build_placeholders(input_channels):
     """."""
@@ -55,15 +55,7 @@ def build_inference(inputs, filters, kernel_size, dilation_powers, output_channe
             residuals.append(residual)
 
     with tf.variable_scope('output'):
-        net = tf.add_n(residuals)
-        net = tf.nn.relu(net)
-
-        net = tf.layers.conv1d(
-            inputs=net, filters=filters, kernel_size=1, activation=tf.nn.relu, name='1x1_relu'
-        )
-        net = tf.layers.conv1d(
-            inputs=net, filters=output_channels, kernel_size=1, activation=None, name='logits'
-        )
+        net = output_block(residuals, output_channels, data_format='channels_last')
 
     return net
 
