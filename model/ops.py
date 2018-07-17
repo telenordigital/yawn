@@ -25,24 +25,26 @@ SUPPORTED_DATA_FORMATS = (
     'channels_first'
 )
 
-def causal_conv1d(inputs,
-                  filters,
-                  kernel_size,
-                  data_format='channels_last',
-                  dilation_rate=1,
-                  padding_value=0,
-                  activation=None,
-                  use_bias=True,
-                  kernel_initializer=None,
-                  bias_initializer=tf.zeros_initializer(),
-                  kernel_regularizer=None,
-                  bias_regularizer=None,
-                  activity_regularizer=None,
-                  kernel_constraint=None,
-                  bias_constraint=None,
-                  trainable=True,
-                  name=None,
-                  reuse=None):
+def causal_conv1d(
+        inputs,
+        filters,
+        kernel_size,
+        data_format='channels_last',
+        dilation_rate=1,
+        padding_value=0,
+        activation=None,
+        use_bias=True,
+        kernel_initializer=None,
+        bias_initializer=tf.zeros_initializer(),
+        kernel_regularizer=None,
+        bias_regularizer=None,
+        activity_regularizer=None,
+        kernel_constraint=None,
+        bias_constraint=None,
+        trainable=True,
+        name=None,
+        reuse=None
+):
     """1D convolution layer with padding along the data direction.
 
     This layer operates just like a tf.layers.conv1d layer except that
@@ -58,8 +60,7 @@ def causal_conv1d(inputs,
       inputs: Tensor input.
       filters: Integer, the dimensionality of the output space (i.e. the number
         of filters in the convolution).
-      kernel_size: An integer or tuple/list of a single integer, specifying the
-        length of the 1D convolution window.
+      kernel_size: An integer specifying the length of the 1D convolution window.
       data_format: A string, one of `channels_last` (default) or `channels_first`.
         The ordering of the dimensions in the inputs.
         `channels_last` corresponds to inputs with shape

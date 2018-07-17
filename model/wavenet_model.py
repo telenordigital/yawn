@@ -41,9 +41,8 @@ def building_block(inputs, kernel_size, data_format, dilation_rate):
 
     Arguments:
       inputs: Tensor input.
-      kernel_size: An integer or tuple/list of a single integer, specifying the
-        length of the 1D convolution window.
-      data_format: A string, one of `channels_last` (default) or `channels_first`.
+      kernel_size: An integer specifying the length of the 1D convolution window.
+      data_format: A string, one of `channels_last` or `channels_first`.
         The ordering of the dimensions in the inputs.
         `channels_last` corresponds to inputs with shape
         `(batch, length, channels)` while `channels_first` corresponds to
@@ -96,7 +95,7 @@ def output_block(skip_connections, output_channels, data_format, activation=tf.n
       skip_connections: List of tensors corresponding to skip contributions.
       output_channels: Integer or tuple/list of single integer, specifying the
         number of channels in the output prediction tensor.
-      data_format: A string, one of `channels_last` (default) or `channels_first`.
+      data_format: A string, one of `channels_last` or `channels_first`.
         The ordering of the dimensions in the inputs.
         `channels_last` corresponds to inputs with shape
         `(batch, length, channels)` while `channels_first` corresponds to
@@ -137,8 +136,7 @@ class WaveNetModel(object):
 
         Arguments:
           filters: Integer number of filters to use for the residual and skip-connection blocks.
-          kernel_size: An integer or tuple/list of a single integer, specifying the
-            length of the 1D convolution windows.
+          kernel_size: An integer specifying the length of the 1D convolution windows.
           dilations: List of integers, dilation factor for each separate layers.
             The length of this list also determines the number of layers.
           output_channels: Integer number of outputs.
@@ -157,7 +155,7 @@ class WaveNetModel(object):
         self.dilations = dilations
         self.output_channels = output_channels
 
-    def __call__(self, inputs, training=False):
+    def __call__(self, inputs, is_training=False):
         """Adds operations to the current graph for the logit output.
 
         Arguments:
@@ -173,7 +171,7 @@ class WaveNetModel(object):
         net = inputs
 
         # Currently unused
-        _ = training
+        _ = is_training
 
         with tf.variable_scope('initial'):
             net = causal_conv1d(
