@@ -37,7 +37,7 @@ def build_loss(labels, logits):
     """."""
     return tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=logits)
 
-def build_train_op(loss, learning_rate=1e-2):
+def build_train_op(loss, learning_rate=1e-3):
     """."""
     return tf.train.AdamOptimizer(learning_rate).minimize(loss)
 
@@ -56,7 +56,12 @@ def build_model(input_channels, output_channels, filters, kernel_size, dilations
         logits = tf.transpose(logits, [0, 2, 1])
 
     with tf.variable_scope('loss'):
-        loss = build_loss(labels, logits)
+        receptive_field = 0
+        for dilation in dilations:
+            receptive_field += (kernel_size-1)*dilation
+        print('RECEPTIVE FIELD : {}'.format(receptive_field))
+
+        loss = build_loss(labels[:,receptive_field:,...], logits[:,receptive_field:,...])
 
     with tf.variable_scope('train'):
         train_op = build_train_op(loss)
@@ -130,12 +135,12 @@ def main():
     filters = 16
     kernel_size = 2
 
-    dilation_powers = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+    dilation_powers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     dilations = [kernel_size**power for power in dilation_powers]
 
     dataset_size = 100000
     data = np.sin(np.linspace(-256*np.pi, 256*np.pi, dataset_size+1))
-    bins = np.linspace(-1, 1, output_channels)
+    bins = np.percentile(data, np.linspace(0, 100, output_channels))
 
     labels = quantize(data, bins)
     data = dequantize(labels, bins)
@@ -144,14 +149,17 @@ def main():
     labels = labels[1:]
 
     batch_num = 8
-    batch_size = 1024
+    batch_size = 2048
 
     graph = tf.Graph()
     with graph.as_default():
         m = build_model(input_channels, output_channels, filters, kernel_size, dilations)
     report_parameters(graph=graph)
 
-    with tf.Session(graph=graph) as session:
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+
+    with tf.Session(graph=graph, config=config) as session:
         graph.finalize()
 
         session.run(m['init'])
@@ -159,7 +167,7 @@ def main():
         plt.ion()
         fig, ax = plt.subplots()
 
-        values = data[:512].copy()
+        values = data[:1024].copy()
 
         li, = ax.plot(values)
         line = None
@@ -172,7 +180,7 @@ def main():
             print('loss={}'.format(loss))
 
             if line is None:
-                if loss < 1.0:
+                if loss < 0.1:
                     line = li
                 else:
                     continue
