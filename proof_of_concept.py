@@ -28,55 +28,10 @@ from model.wavenet_model import building_block, output_block, WaveNetModel
 
 def build_placeholders(input_channels):
     """."""
-    x = tf.placeholder(dtype=tf.float32, shape=(None, input_channels, None))
+    x = tf.placeholder(dtype=tf.float32, shape=(None, None, input_channels))
     y = tf.placeholder(dtype=tf.int32, shape=(None, None, 1))
 
     return x,y
-
-def build_loss(labels, logits):
-    """."""
-    return tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=logits)
-
-def build_train_op(loss, learning_rate=1e-3):
-    """."""
-    return tf.train.AdamOptimizer(learning_rate).minimize(loss)
-
-def build_model(input_channels, output_channels, filters, kernel_size, dilations):
-    """."""
-    with tf.variable_scope('inputs'):
-        inputs, labels = build_placeholders(input_channels)
-
-    with tf.variable_scope('inference'):
-        model = WaveNetModel(
-            filters=filters, kernel_size=kernel_size,
-            dilations=dilations, output_channels=output_channels,
-            data_format='channels_first'
-        )
-        logits = model(inputs)
-        logits = tf.transpose(logits, [0, 2, 1])
-
-    with tf.variable_scope('loss'):
-        receptive_field = 0
-        for dilation in dilations:
-            receptive_field += (kernel_size-1)*dilation
-        print('RECEPTIVE FIELD : {}'.format(receptive_field))
-
-        loss = build_loss(labels[:,receptive_field:,...], logits[:,receptive_field:,...])
-
-    with tf.variable_scope('train'):
-        train_op = build_train_op(loss)
-
-    with tf.variable_scope('init'):
-        init = tf.global_variables_initializer()
-
-    return {
-        'x' : inputs,
-        'y' : labels,
-        'logits' : logits,
-        'loss' : loss,
-        'train_op' : train_op,
-        'init' : init
-    }
 
 def report_parameters(graph):
     """."""
@@ -99,7 +54,7 @@ def dequantize(data, bins):
     """."""
     return bins[data]
 
-def train_iteration(session, m, data, labels, batch_num, batch_size):
+def train_iteration(session, model, features, labels, data, data_labels, batch_num, batch_size):
     """."""
     dataset_size = len(data)
     indices = np.random.randint(dataset_size-batch_size, size=batch_num)
@@ -107,25 +62,27 @@ def train_iteration(session, m, data, labels, batch_num, batch_size):
     train_data = []
     train_labels = []
     for index in indices:
-        train_data.append(data[index:index+batch_size].reshape(1, -1))
-        train_labels.append(labels[index:index+batch_size].reshape(-1, 1))
+        train_data.append(data[index:index+batch_size].reshape(-1, 1))
+        train_labels.append(data_labels[index:index+batch_size].reshape(-1, 1))
 
     loss, _ = session.run(
-        [m['loss'], m['train_op']],
+        [model.loss, model.train_op],
         feed_dict={
-            m['x'] : train_data,
-            m['y'] : train_labels
+            features : train_data,
+            labels : train_labels
         }
     )
 
     return loss
 
-def generate(session, m, values):
+def generate(session, features, model, values):
     """."""
-    predictions = session.run(m['logits'], feed_dict={m['x'] : values.reshape(1, 1, -1)})
-    predictions = np.argmax(predictions[0], axis=-1)
+    predictions = session.run(
+        model.predictions['predictions'],
+        feed_dict={features : values.reshape(1, -1, 1)}
+    )
 
-    return predictions[-1]
+    return predictions[0,-1]
 
 def main():
     """."""
@@ -135,39 +92,61 @@ def main():
     filters = 16
     kernel_size = 2
 
-    dilation_powers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    dilation_powers = [0, 1, 2, 3, 4, 5, 6, 7]
     dilations = [kernel_size**power for power in dilation_powers]
 
     dataset_size = 100000
-    data = np.sin(np.linspace(-256*np.pi, 256*np.pi, dataset_size+1))
+    data = np.sin(np.linspace(-512*np.pi, 512*np.pi, dataset_size+1))
     bins = np.percentile(data, np.linspace(0, 100, output_channels))
 
-    labels = quantize(data, bins)
-    data = dequantize(labels, bins)
+    data_labels = quantize(data, bins)
+    data = dequantize(data_labels, bins)
 
     data = data[:-1]
-    labels = labels[1:]
+    data_labels = data_labels[1:]
 
-    batch_num = 8
-    batch_size = 2048
+    batch_num = 4
+    batch_size = 1024
 
     graph = tf.Graph()
     with graph.as_default():
-        m = build_model(input_channels, output_channels, filters, kernel_size, dilations)
+        features, labels = build_placeholders(input_channels=input_channels)
+
+        model = WaveNetModel(
+            filters=filters,
+            kernel_size=kernel_size,
+            dilations=dilations,
+            output_channels=output_channels,
+            data_format='channels_last'
+        )
+
+        print('Receptive field : {}'.format(model.receptive_field))
+
+        with tf.variable_scope('wavenet', reuse=False):
+            train_model = model.model_fn(
+                features, labels, tf.estimator.ModeKeys.TRAIN, dict(learning_rate=1e-3)
+            )
+
+        with tf.variable_scope('wavenet', reuse=True):
+            infer_model = model.model_fn(
+                features, None, tf.estimator.ModeKeys.PREDICT, dict()
+            )
+
+        init_op = tf.global_variables_initializer()
+    graph.finalize()
+
     report_parameters(graph=graph)
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
 
     with tf.Session(graph=graph, config=config) as session:
-        graph.finalize()
-
-        session.run(m['init'])
+        session.run(init_op)
 
         plt.ion()
         fig, ax = plt.subplots()
 
-        values = data[:1024].copy()
+        values = data[:256].copy()
 
         li, = ax.plot(values)
         line = None
@@ -176,16 +155,19 @@ def main():
         ax.grid(True)
 
         while True:
-            loss = train_iteration(session, m, data, labels, batch_num, batch_size)
+            loss = train_iteration(
+                session, train_model, features, labels,
+                data, data_labels, batch_num, batch_size
+            )
             print('loss={}'.format(loss))
 
             if line is None:
-                if loss < 0.1:
+                if loss < 1.0:
                     line = li
                 else:
                     continue
 
-            prediction = generate(session, m, values)
+            prediction = generate(session, features, infer_model, values)
             values[:-1] = values[1:]
             values[-1] = dequantize(prediction, bins)
 

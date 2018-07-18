@@ -23,6 +23,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from model import wavenet_estimator
 from model.ops import causal_conv1d
 
 import tensorflow as tf
@@ -131,13 +132,28 @@ def output_block(skip_connections, output_channels, data_format, activation=tf.n
 class WaveNetModel(object):
     """Base class for building a WaveNet model."""
 
+    @staticmethod
+    def calculate_receptive_field(kernel_size, dilations):
+        """Calculates the receptive field of an output.
+
+        Arguments:
+          kernel_size: An integer specifying the length of the 1D convolution windows.
+          dilations: List of integers specifying the dilation factor for each of the layers.
+            The length of this list also determines the number of layers.
+
+        Returns:
+          The receptive field of an output. The number of data points it can theoretically view
+          backwards from the input, indirectly through all the hidden layers.
+        """
+        return (kernel_size-1) * sum(dilations)
+
     def __init__(self, filters, kernel_size, dilations, output_channels, data_format=None):
         """Creates a WaveNet model.
 
         Arguments:
           filters: Integer number of filters to use for the residual and skip-connection blocks.
           kernel_size: An integer specifying the length of the 1D convolution windows.
-          dilations: List of integers, dilation factor for each separate layers.
+          dilations: List of integers specifying the dilation factor for each of the layers.
             The length of this list also determines the number of layers.
           output_channels: Integer number of outputs.
           data_format: A string, one of `channels_last` (default) or `channels_first`.
@@ -154,6 +170,7 @@ class WaveNetModel(object):
         self.kernel_size = kernel_size
         self.dilations = dilations
         self.output_channels = output_channels
+        self.receptive_field = self.calculate_receptive_field(kernel_size, dilations)
 
     def __call__(self, inputs, is_training=False):
         """Adds operations to the current graph for the logit output.
@@ -164,9 +181,8 @@ class WaveNetModel(object):
             [batch, channels, length] if data format was set to `channels_first`.
           training: Boolean to indicate if the model is meant to be used for training.
         Returns:
-          A `logits` tensor representing unscaled log-probabilities of size
-            [batch, length, output_channels] if data format was set to `channels_last` or
-            [batch, output_channels, length] if data format was set to `channels_first`.
+          A `logits` tensor representing unscaled log-probabilities of same size as
+          the inputs tensor except the number of channels is modified to output_channels.
         """
         net = inputs
 
@@ -196,3 +212,17 @@ class WaveNetModel(object):
             net = output_block(skip_connections, self.output_channels, data_format=self.data_format)
 
         return net
+
+    def model_fn(self, features, labels, mode, params):
+        """Works like a model_fn for use with the tf.estimator API.
+
+        The params argument must contain
+        Arguments:
+          learning_rate: Float learning rate to use with the optimizer.
+
+        Everything else is filled in based on the contents of this instance.
+        See wavenet_estimator.model_fn for more information."""
+        params.update(self.__dict__)
+        params['model'] = self
+
+        return wavenet_estimator.model_fn(features, labels, mode, params)
