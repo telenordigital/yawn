@@ -65,12 +65,17 @@ def model_fn(features, labels, mode, params):
         predictions = tf.argmax(input=logits, axis=channel_axis, output_type=tf.int32, name='predictions')
 
     if mode == tf.estimator.ModeKeys.PREDICT:
+        predictions = {
+            'logits' : logits,
+            'probabilities' : probabilities,
+            'predictions' : predictions
+        }
+
         return tf.estimator.EstimatorSpec(
             mode=mode,
-            predictions={
-                'logits' : logits,
-                'probabilities' : probabilities,
-                'predictions' : predictions
+            predictions=predictions,
+            export_outputs={
+                'predictions' : tf.estimator.export.PredictOutput(predictions)
             }
         )
 
