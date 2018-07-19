@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Trains and exports a saved-model based on some test data."""
+"""Imports a trained model and uses it to generate new data."""
 
 from __future__ import absolute_import
 from __future__ import division
