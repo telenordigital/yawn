@@ -22,12 +22,31 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 
-from data.sine_wave import get_numpy_data, dequantize
+from data.quantized_sine_wave import get_numpy_data, dequantize
 from model.wavenet_model import WaveNetModel
+
+# TODO: Figure out some util file for this function.
+def data_format_to_shape(
+        batch_length=None,
+        sequence_length=None,
+        channel_length=None,
+        data_format='channels_first'
+):
+    """."""
+    shape = [batch_length, None, None]
+
+    channel_axis = 1 if data_format == 'channels_first' else 2
+    sequence_axis = 2 if data_format == 'channels_first' else 1
+
+    shape[sequence_axis] = sequence_length
+    shape[channel_axis] = channel_length
+
+    return tuple(shape)
 
 def main():
     """."""
     input_channels = 1
+    label_channels = 1
     output_channels = 64
 
     filters = 16
@@ -46,9 +65,6 @@ def main():
     data = data[:dataset_size]
     data_labels = data_labels[:dataset_size]
 
-    data = data.reshape(-1, sequence_length, 1)
-    data_labels = data_labels.reshape(-1, sequence_length, 1)
-
     model = WaveNetModel(
         filters=filters,
         kernel_size=kernel_size,
@@ -56,6 +72,11 @@ def main():
         output_channels=output_channels,
         data_format='channels_last'
     )
+
+    data = data.reshape(
+        data_format_to_shape(-1, sequence_length, input_channels, data_format=model.data_format)
+    )
+    data_labels = data_labels.reshape(-1, sequence_length, label_channels)
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
@@ -76,14 +97,17 @@ def main():
     )
 
     def serving_input_receiver_fn():
-        features = tf.placeholder(dtype=tf.float32, shape=[None, None, 1])
+        features = tf.placeholder(
+            dtype=tf.float32,
+            shape=data_format_to_shape(None, None, input_channels, data_format=model.data_format),
+            name='inputs'
+        )
         return tf.estimator.export.TensorServingInputReceiver(
             features=features,
             receiver_tensors=features
         )
 
     classifier.export_savedmodel('/tmp/wavenet', serving_input_receiver_fn)
-
     return 0
 
 if __name__ == '__main__':
