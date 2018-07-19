@@ -147,7 +147,7 @@ class WaveNetModel(object):
         """
         return (kernel_size-1) * sum(dilations)
 
-    def __init__(self, filters, kernel_size, dilations, output_channels, data_format=None):
+    def __init__(self, filters, kernel_size, dilations, bins, output_channels, data_format=None):
         """Creates a WaveNet model.
 
         Arguments:
@@ -169,6 +169,7 @@ class WaveNetModel(object):
         self.filters = filters
         self.kernel_size = kernel_size
         self.dilations = dilations
+        self.bins = bins
         self.output_channels = output_channels
         self.receptive_field = self.calculate_receptive_field(kernel_size, dilations)
 
@@ -222,6 +223,7 @@ class WaveNetModel(object):
 
         Everything else is filled in based on the contents of this instance.
         See wavenet_estimator.model_fn for more information."""
+        params = dict(params)
         params.update(self.__dict__)
         params['model'] = self
 

@@ -49,14 +49,14 @@ def main():
     label_channels = 1
     output_channels = 64
 
-    filters = 16
+    filters = 8
     kernel_size = 2
 
     dilation_powers = [0, 1, 2, 3, 4, 5, 6, 7]
     dilations = [kernel_size**power for power in dilation_powers]
 
     dataset_size = 100000
-    data, data_labels, bins = get_numpy_data(dataset_size, output_channels, scale=256)
+    data, data_labels, bins = get_numpy_data(dataset_size, output_channels, scale=256.0)
 
     batch_size = 4
     sequence_length = 1024
@@ -70,6 +70,7 @@ def main():
         kernel_size=kernel_size,
         dilations=dilations,
         output_channels=output_channels,
+        bins=bins,
         data_format='channels_last'
     )
 
@@ -84,7 +85,7 @@ def main():
     classifier = tf.estimator.Estimator(
         model_fn=model.model_fn,
         params=dict(
-            learning_rate=1e-3
+            learning_rate=1e-2
         ),
         config=tf.estimator.RunConfig(session_config=config)
     )
@@ -99,7 +100,9 @@ def main():
     def serving_input_receiver_fn():
         features = tf.placeholder(
             dtype=tf.float32,
-            shape=data_format_to_shape(None, None, input_channels, data_format=model.data_format),
+            shape=data_format_to_shape(
+                None, 1+model.receptive_field, input_channels, data_format=model.data_format
+            ),
             name='inputs'
         )
         return tf.estimator.export.TensorServingInputReceiver(
@@ -107,7 +110,10 @@ def main():
             receiver_tensors=features
         )
 
-    classifier.export_savedmodel('/tmp/wavenet', serving_input_receiver_fn)
+    classifier.export_savedmodel(
+        export_dir_base='/tmp/wavenet',
+        serving_input_receiver_fn=serving_input_receiver_fn
+    )
     return 0
 
 if __name__ == '__main__':

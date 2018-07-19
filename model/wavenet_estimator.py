@@ -55,21 +55,23 @@ def model_fn(features, labels, mode, params):
       A tf.estimator.EstimatorSpec for the given mode.
     """
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
+    channel_axis = 1 if params['data_format'] == 'channels_first' else 2
 
     with tf.variable_scope('model'):
         global_step = tf.train.get_or_create_global_step()
         logits = params['model'](features, is_training=is_training)
 
-        channel_axis = 1 if params['data_format'] == 'channels_first' else 2
-        probabilities = tf.nn.softmax(logits=logits, axis=channel_axis, name='probabilities')
-        predictions = tf.argmax(input=logits, axis=channel_axis, output_type=tf.int32, name='predictions')
-
     if mode == tf.estimator.ModeKeys.PREDICT:
-        predictions = {
-            'logits' : logits,
-            'probabilities' : probabilities,
-            'predictions' : predictions
-        }
+        predictions = dict(logits=logits)
+        predictions['probabilities'] = tf.nn.softmax(
+            logits=logits, axis=channel_axis, name='predictions/probabilities'
+        )
+        predictions['argmax'] = tf.argmax(
+            input=logits, axis=channel_axis, output_type=tf.int32, name='predictions/argmax'
+        )
+
+        bins = tf.constant(params['bins'], name='predictions/bins')
+        predictions['values'] = tf.gather(bins, predictions['argmax'], name='predictions/values')
 
         return tf.estimator.EstimatorSpec(
             mode=mode,
