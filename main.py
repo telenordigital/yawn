@@ -57,13 +57,15 @@ def main():
         data_format='channels_last'
     )
 
-    tf.logging.set_verbosity(tf.logging.INFO)
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
 
     classifier = tf.estimator.Estimator(
         model_fn=model.model_fn,
         params=dict(
             learning_rate=1e-3
-        )
+        ),
+        config=tf.estimator.RunConfig(session_config=config)
     )
 
     classifier.train(
@@ -85,4 +87,5 @@ def main():
     return 0
 
 if __name__ == '__main__':
+    tf.logging.set_verbosity(tf.logging.INFO)
     exit(main())
