@@ -43,7 +43,7 @@ def data_format_to_shape(
 
     return tuple(shape)
 
-def main():
+def main(FLAGS):
     """."""
     input_channels = 1
     label_channels = 1
@@ -83,9 +83,10 @@ def main():
     config.gpu_options.allow_growth = True
 
     classifier = tf.estimator.Estimator(
+        model_dir=FLAGS.model_dir,
         model_fn=model.model_fn,
         params=dict(
-            learning_rate=1e-2
+            learning_rate=1e-3
         ),
         config=tf.estimator.RunConfig(session_config=config)
     )
@@ -117,5 +118,15 @@ def main():
     return 0
 
 if __name__ == '__main__':
+    import argparse
+
     tf.logging.set_verbosity(tf.logging.INFO)
-    exit(main())
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--model_dir', type=str, metavar=dir, default=None,
+        help='Estimator model directory.'
+    )
+
+    args = parser.parse_args()
+    exit(main(args))

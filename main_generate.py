@@ -49,12 +49,18 @@ def extract_tags(signature_def, graph):
 
     return output
 
-def update_plot(session, placeholder, outputs, line, values, shape):
+def update_values(session, placeholder, outputs, values, shape):
     """."""
     predictions = session.run(outputs['values'], feed_dict={placeholder : values.reshape(shape)})
 
     values[:-1] = values[1:]
     values[-1] = predictions[0,-1]
+
+    return values
+
+def update_plot(session, placeholder, outputs, line, values, shape):
+    """."""
+    values = update_values(session, placeholder, outputs, values, shape)
 
     line.set_ydata(values)
     plt.draw()
@@ -73,7 +79,10 @@ def main(FLAGS):
         outputs = tags['predictions']['outputs']
 
         shape = [-1 if s is None else s for s in placeholder.shape.as_list()]
-        values = 2.0*np.random.rand(shape[1])-1.0
+        values = np.random.rand(shape[1], dtype=np.float32)
+
+        for i in range(1024):
+            values = update_values(session, placeholder, outputs, values, shape)
 
         plt.ion()
         fig, ax = plt.subplots()
