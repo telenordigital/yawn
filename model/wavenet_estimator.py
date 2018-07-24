@@ -20,9 +20,44 @@ from __future__ import print_function
 
 import tensorflow as tf
 
-def loss_fn(labels, logits):
-    """A simple softmax cross entropy loss over the outputs."""
-    return tf.losses.sparse_softmax_cross_entropy(labels=labels, logits=logits)
+# TODO: These loss functions belong in some other file?
+def regressive_loss_fn(labels, predictions, params):
+    """."""
+    labels = tf.gather(predictions['bins'], labels)
+
+    return tf.losses.mean_squared_error(
+        labels[:,params['receptive_field']:,...],
+        predictions['values'][:,params['receptive_field']:,...]
+    )
+
+def categorical_loss_fn(labels, predictions, params):
+    """."""
+    logits = predictions['logits']
+
+    # tf.losses seem to expect `channels_last`
+    if params['data_format'] == 'channels_first':
+        logits = tf.transpose(logits, [0, 2, 1], name='channels_last_logits')
+
+    return tf.losses.sparse_softmax_cross_entropy(
+        labels=labels[:,params['receptive_field']:,...],
+        logits=logits[:,params['receptive_field']:,...]
+    )
+
+def mixture_loss_fn(labels, predictions, params):
+    """."""
+    labels = tf.gather(predictions['bins'], labels)
+    normalized_labels = (labels - predictions['means'])/predictions['standard_deviations']
+
+    return tf.reduce_mean(
+        tf.square(normalized_labels[:,params['receptive_field']:,...]) +
+        predictions['log_variances'][:,params['receptive_field']:,...]
+    )
+
+LOSS_FNS = {
+    'regressive'  : regressive_loss_fn,
+    'categorical' : categorical_loss_fn,
+    'mixture'     : mixture_loss_fn
+}
 
 def train_fn(loss, global_step, learning_rate):
     """A simple adam optimizer applied to the loss."""
@@ -59,20 +94,9 @@ def model_fn(features, labels, mode, params):
 
     with tf.variable_scope('model'):
         global_step = tf.train.get_or_create_global_step()
-        logits = params['model'](features, is_training=is_training)
+        predictions = params['model'](features, is_training=is_training)
 
     if mode == tf.estimator.ModeKeys.PREDICT:
-        predictions = dict(logits=logits)
-        predictions['probabilities'] = tf.nn.softmax(
-            logits=logits, axis=channel_axis, name='predictions/probabilities'
-        )
-        predictions['argmax'] = tf.argmax(
-            input=logits, axis=channel_axis, output_type=tf.int32, name='predictions/argmax'
-        )
-
-        bins = tf.constant(params['bins'], name='predictions/bins')
-        predictions['values'] = tf.gather(bins, predictions['argmax'], name='predictions/values')
-
         return tf.estimator.EstimatorSpec(
             mode=mode,
             predictions=predictions,
@@ -82,12 +106,8 @@ def model_fn(features, labels, mode, params):
         )
 
     with tf.variable_scope('loss'):
-        # tf.losses seem to expect `channels_last`
-        if params['data_format'] == 'channels_first':
-            logits = tf.transpose(logits, [0, 2, 1], name='channels_last_logits')
-
-        receptive_field = params['receptive_field']
-        loss = loss_fn(labels=labels[:,receptive_field:,...], logits=logits[:,receptive_field:,...])
+        loss_fn = LOSS_FNS[params['version']]
+        loss = loss_fn(labels=labels, predictions=predictions, params=params)
 
     if mode == tf.estimator.ModeKeys.EVAL:
         return tf.estimator.EstimatorSpec(

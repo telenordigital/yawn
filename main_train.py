@@ -47,7 +47,8 @@ def main(FLAGS):
     """."""
     input_channels = 1
     label_channels = 1
-    output_channels = 64
+    quantization = 64
+    num_mixtures = 5
 
     filters = 8
     kernel_size = 2
@@ -56,7 +57,7 @@ def main(FLAGS):
     dilations = [kernel_size**power for power in dilation_powers]
 
     dataset_size = 100000
-    data, data_labels, bins = get_numpy_data(dataset_size, output_channels, scale=256.0)
+    data, data_labels, bins = get_numpy_data(dataset_size, quantization, scale=256.0)
 
     batch_size = 4
     sequence_length = 1024
@@ -69,9 +70,11 @@ def main(FLAGS):
         filters=filters,
         kernel_size=kernel_size,
         dilations=dilations,
-        output_channels=output_channels,
+        quantization=quantization,
+        num_mixtures=num_mixtures,
         bins=bins,
-        data_format='channels_last'
+        data_format='channels_last',
+        version='mixture'
     )
 
     data = data.reshape(
@@ -86,7 +89,7 @@ def main(FLAGS):
         model_dir=FLAGS.model_dir,
         model_fn=model.model_fn,
         params=dict(
-            learning_rate=1e-3
+            learning_rate=1e-4
         ),
         config=tf.estimator.RunConfig(session_config=config)
     )
@@ -94,7 +97,7 @@ def main(FLAGS):
     classifier.train(
         input_fn=tf.estimator.inputs.numpy_input_fn(
             data, data_labels, batch_size=batch_size, shuffle=True,
-            num_epochs=100
+            num_epochs=200
         )
     )
 

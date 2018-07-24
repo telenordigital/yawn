@@ -17,6 +17,14 @@
     Alex Graves, Nal Kalchbrenner, Andrew Senior, Koray Kavukcuoglu
     WaveNet: A Generative Model for Raw Audio. arXiv:1609.03499
     url: https://arxiv.org/abs/1609.03499
+
+[2] Aaron van den Oord, Yazhe Li, Igor Babuschkin, Karen Simonyan, Oriol Vinyals,
+    Koray Kavukcuoglu, George van den Driessche, Edward Lockhart, Luis C. Cobo,
+    Florian Stimberg, Norman Casagrande, Dominik Grewe, Seb Noury, Sander Dieleman,
+    Erich Elsen, Nal Kalchbrenner, Heiga Zen, Alex Graves, Helen King, Tom Walters,
+    Dan Belov, Demis Hassabis
+    Parallel WaveNet: Fast High-Fidelity Speech Synthesis. arXiv:1711.10433
+    url: https://arxiv.org/abs/1711.10433
 """
 
 from __future__ import absolute_import
@@ -124,13 +132,19 @@ def output_block(skip_connections, output_channels, data_format, activation=tf.n
     outputs = tf.layers.conv1d(
         inputs=outputs, filters=output_channels, kernel_size=1,
         data_format=data_format, activation=None,
-        name='logits'
+        name='linear_output'
     )
 
     return outputs
 
 class WaveNetModel(object):
     """Base class for building a WaveNet model."""
+
+    VERSIONS = (
+        'categorical',
+        'regressive',
+        'mixture'
+    )
 
     @staticmethod
     def calculate_receptive_field(kernel_size, dilations):
@@ -147,7 +161,12 @@ class WaveNetModel(object):
         """
         return (kernel_size-1) * sum(dilations)
 
-    def __init__(self, filters, kernel_size, dilations, bins, output_channels, data_format=None):
+    def __init__(
+            self,
+            filters, kernel_size, dilations,
+            bins, quantization, num_mixtures=None,
+            data_format=None, version='categorical'
+    ):
         """Creates a WaveNet model.
 
         Arguments:
@@ -155,7 +174,9 @@ class WaveNetModel(object):
           kernel_size: An integer specifying the length of the 1D convolution windows.
           dilations: List of integers specifying the dilation factor for each of the layers.
             The length of this list also determines the number of layers.
-          output_channels: Integer number of outputs.
+          quantization: Integer number of outputs.
+          num_mixtures: If `version == 'mixture'` Integer defining number of distributions
+            to mix as output.
           data_format: A string, one of `channels_last` (default) or `channels_first`.
             The ordering of the dimensions in the inputs.
             `channels_last` corresponds to inputs with shape
@@ -166,12 +187,27 @@ class WaveNetModel(object):
         if self.data_format is None:
             self.data_format = 'channels_last'
 
+        if version not in self.VERSIONS:
+            raise ValueError('Unsupported version `{}` must be one of {}'.format(version, self.VERSIONS))
+        self.version = version
+
         self.filters = filters
         self.kernel_size = kernel_size
         self.dilations = dilations
         self.bins = bins
-        self.output_channels = output_channels
+        self.num_outputs = len(bins)
+        self.quantization = quantization
+        self.num_mixtures = num_mixtures
+        self.elements_per_mixture = None
         self.receptive_field = self.calculate_receptive_field(kernel_size, dilations)
+
+        if self.version == 'regressive':
+            self.output_channels = 1
+        if self.version == 'categorical':
+            self.output_channels = quantization
+        if self.version == 'mixture':
+            self.outputs_per_distribution = 2
+            self.output_channels = self.num_mixtures*self.outputs_per_distribution
 
     def __call__(self, inputs, is_training=False):
         """Adds operations to the current graph for the logit output.
@@ -182,13 +218,14 @@ class WaveNetModel(object):
             [batch, channels, length] if data format was set to `channels_first`.
           training: Boolean to indicate if the model is meant to be used for training.
         Returns:
-          A `logits` tensor representing unscaled log-probabilities of same size as
-          the inputs tensor except the number of channels is modified to output_channels.
+          A string->tensor dictionary of predictions based on the model version.
         """
         net = inputs
 
         # Currently unused
         _ = is_training
+
+        channel_axis = 1 if self.data_format == 'channels_first' else 2
 
         with tf.variable_scope('initial'):
             net = causal_conv1d(
@@ -210,19 +247,54 @@ class WaveNetModel(object):
                 skip_connections.append(residual)
 
         with tf.variable_scope('output'):
-            net = output_block(skip_connections, self.output_channels, data_format=self.data_format)
+            net = output_block(
+                skip_connections,
+                output_channels=self.output_channels,
+                data_format=self.data_format
+            )
 
-        return net
+        with tf.variable_scope('predictions'):
+            predictions = dict(raw_output=net)
+            predictions['bins'] = tf.constant(self.bins, name='bins')
+
+            if self.version == 'regressive':
+                predictions['values'] = tf.squeeze(net, axis=-1, name='values')
+
+            if self.version == 'categorical':
+                predictions['logits'] = tf.identity(net, name='logits')
+                predictions['probabilities'] = tf.nn.softmax(
+                    net, axis=channel_axis, name='probabilities'
+                )
+                predictions['argmax'] = tf.argmax(net, axis=channel_axis, name='argmax')
+                predictions['values'] = tf.gather(
+                    predictions['bins'],
+                    predictions['argmax'],
+                    name='values'
+                )
+
+            if self.version == 'mixture':
+                means, log_variances = tf.split(
+                    net, self.outputs_per_distribution, axis=channel_axis
+                )
+                predictions['means'] = means
+                predictions['log_variances'] = log_variances
+                predictions['standard_deviations'] = tf.exp(
+                    0.5*log_variances, name='standard_deviations'
+                )
+                predictions['values'] = tf.reduce_mean(means, axis=-1)
+
+        return predictions
 
     def model_fn(self, features, labels, mode, params):
         """Works like a model_fn for use with the tf.estimator API.
 
-        The params argument must contain
+        The params argument must contain (if mode is TRAIN)
         Arguments:
           learning_rate: Float learning rate to use with the optimizer.
 
         Everything else is filled in based on the contents of this instance.
-        See wavenet_estimator.model_fn for more information."""
+        See wavenet_estimator.model_fn for more information.
+        """
         params = dict(params)
         params.update(self.__dict__)
         params['model'] = self

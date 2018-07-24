@@ -79,7 +79,7 @@ def main(FLAGS):
         outputs = tags['predictions']['outputs']
 
         shape = [-1 if s is None else s for s in placeholder.shape.as_list()]
-        values = np.random.rand(shape[1], dtype=np.float32)
+        values = np.zeros(shape[1], dtype=np.float32)
 
         for i in range(1024):
             values = update_values(session, placeholder, outputs, values, shape)
@@ -88,6 +88,7 @@ def main(FLAGS):
         fig, ax = plt.subplots()
         line, = plt.plot(values)
         ax.set_ylim(-1.1, 1.1)
+        ax.grid(True)
 
         while True:
             values = update_plot(session, placeholder, outputs, line, values, shape)
