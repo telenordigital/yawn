@@ -195,7 +195,6 @@ class WaveNetModel(object):
         self.kernel_size = kernel_size
         self.dilations = dilations
         self.bins = bins
-        self.num_outputs = len(bins)
         self.quantization = quantization
         self.num_mixtures = num_mixtures
         self.elements_per_mixture = None

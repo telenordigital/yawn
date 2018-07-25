@@ -20,14 +20,14 @@ from __future__ import print_function
 
 import numpy as np
 
-def quantize(data, bins, right=True, dtype=np.int64):
+def quantize(data, bins, right=False, dtype=np.int64):
     """."""
-    quantized = np.digitize(data, bins, right=right)
+    quantized = np.digitize(data, bins[1:-1], right=right)
     return quantized.astype(dtype)
 
-def dequantize(data, bins):
+def dequantize(digits, bins):
     """."""
-    return bins[data]
+    return bins[digits]
 
 def get_numpy_data(dataset_size, number_of_bins, scale):
     """."""
@@ -37,7 +37,8 @@ def get_numpy_data(dataset_size, number_of_bins, scale):
     y = np.sin(x)
 
     # Find a roughly even quantization
-    bins = np.percentile(y, np.linspace(0, 100, number_of_bins)).astype(np.float32)
+    bins = np.percentile(y, np.linspace(0, 100, 1+number_of_bins), interpolation='linear')
+    bins = bins.astype(np.float32)
 
     # Digitize
     data = quantize(y[:-1], bins)

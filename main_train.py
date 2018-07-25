@@ -22,7 +22,7 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 
-from data.quantized_sine_wave import get_numpy_data, dequantize
+from data.quantized_sine_wave import get_numpy_data, quantize, dequantize
 from model.wavenet_model import WaveNetModel
 
 # TODO: Figure out some util file for this function.
@@ -48,6 +48,7 @@ def main(FLAGS):
     input_channels = 1
     label_channels = 1
     quantization = 64
+    scale = 256.0
     num_mixtures = 5
 
     filters = 8
@@ -56,8 +57,8 @@ def main(FLAGS):
     dilation_powers = [0, 1, 2, 3, 4, 5, 6, 7]
     dilations = [kernel_size**power for power in dilation_powers]
 
-    dataset_size = 100000
-    data, data_labels, bins = get_numpy_data(dataset_size, quantization, scale=256.0)
+    dataset_size = 1000000
+    data, data_labels, bins = get_numpy_data(dataset_size, quantization, scale=scale)
 
     batch_size = 4
     sequence_length = 1024
