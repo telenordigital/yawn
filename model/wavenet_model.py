@@ -282,6 +282,9 @@ class WaveNetModel(object):
                 predictions['standard_deviations'] = tf.exp(
                     log_standard_deviations, name='standard_deviations'
                 )
+                predictions['inverse_standard_deviations'] = tf.exp(
+                    -log_standard_deviations, name='inverse_standard_deviations'
+                )
                 predictions['values'] = tf.reduce_mean(means, axis=-1)
 
         return predictions

@@ -46,7 +46,7 @@ def categorical_loss_fn(labels, predictions, params):
 
 def mixture_loss_normalize(value, predictions):
     """."""
-    return (value - predictions['means'])/predictions['standard_deviations']
+    return (value - predictions['means'])*predictions['inverse_standard_deviations']
 
 def mixture_loss_cdf(value, predictions):
     """."""
