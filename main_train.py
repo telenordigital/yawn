@@ -49,7 +49,7 @@ def main(FLAGS):
     label_channels = 1
     quantization = 64
     scale = 256.0
-    num_mixtures = 1
+    num_mixtures = 2
 
     filters = 8
     kernel_size = 2
@@ -90,7 +90,7 @@ def main(FLAGS):
         model_dir=FLAGS.model_dir,
         model_fn=model.model_fn,
         params=dict(
-            learning_rate=1e-3,
+            learning_rate=1e-4,
             add_summaries=True
         ),
         config=tf.estimator.RunConfig(session_config=config)
@@ -99,7 +99,7 @@ def main(FLAGS):
     classifier.train(
         input_fn=tf.estimator.inputs.numpy_input_fn(
             data, data_labels, batch_size=batch_size, shuffle=True,
-            num_epochs=200
+            num_epochs=1000
         )
     )
 

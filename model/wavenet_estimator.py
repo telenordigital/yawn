@@ -80,6 +80,8 @@ def mixture_loss_fn(labels, predictions, params):
     label_probabilities = upper_cdf - lower_cdf
     label_probabilities = tf.reduce_mean(label_probabilities, axis=-1)
 
+    label_probabilities = tf.clip_by_value(label_probabilities, 1e-7, 2.0)
+
     # Finally maximize the log probability of the observed bins
     return tf.reduce_mean(-tf.log(label_probabilities))
 

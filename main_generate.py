@@ -51,18 +51,32 @@ def extract_tags(signature_def, graph):
 
 def update_values(session, placeholder, outputs, values, shape):
     """."""
-    predictions = session.run(outputs['values'], feed_dict={placeholder : values.reshape(shape)})
+    predictions = session.run(outputs, feed_dict={placeholder : values.reshape(shape)})
+    return predictions
+
+def update_plot(session, placeholder, outputs, lines, values, shape):
+    """."""
+    predictions = update_values(session, placeholder, outputs, values, shape)
+
+    means = predictions['means'][0,-1]
+    inverse_standard_deviations = predictions['inverse_standard_deviations'][0,-1]
+
+    x = np.linspace(-2.0, 2.0, 1001).reshape(-1, 1)
+    y = inverse_standard_deviations/np.sqrt(2.0*np.pi) * np.exp(
+        -((x-means)*inverse_standard_deviations)**2/2.0
+    )
+
+    y = y.mean(axis=-1)
+
+    value = np.random.normal(means, predictions['standard_deviations'][0,-1])
 
     values[:-1] = values[1:]
-    values[-1] = predictions[0,-1]
+    values[-1] = value.mean()
+    lines[0].set_ydata(values)
 
-    return values
+    lines[1].set_xdata(x)
+    lines[1].set_ydata(y)
 
-def update_plot(session, placeholder, outputs, line, values, shape):
-    """."""
-    values = update_values(session, placeholder, outputs, values, shape)
-
-    line.set_ydata(values)
     plt.draw()
     plt.pause(1.0/60)
 
@@ -81,19 +95,25 @@ def main(FLAGS):
         shape = [-1 if s is None else s for s in placeholder.shape.as_list()]
         values = 2.0*np.random.rand(shape[1])-1.0
 
-        # for i in range(1024):
-        #     values = update_values(session, placeholder, outputs, values, shape)
-
         plt.ion()
-        fig, ax = plt.subplots()
-        line, = plt.plot(values)
-        ax.set_ylim(-1.1, 1.1)
-        ax.grid(True)
+        fig, axes = plt.subplots(2)
+        ax1, ax2 = axes
+
+        l1, = ax1.plot(values)
+        ax1.set_ylim(-1.1, 1.1)
+        ax1.grid(True)
+
+        l2, = ax2.plot([])
+        ax2.set_ylim(-0.1, 4.1)
+        ax2.set_xlim(-2.1, 2.1)
+        lines = (l1, l2)
 
         while True:
-            values = update_plot(session, placeholder, outputs, line, values, shape)
+            try:
+                values = update_plot(session, placeholder, outputs, lines, values, shape)
+            finally:
+                plt.ioff()
 
-    plt.ioff()
     return 0
 
 if __name__ == '__main__':

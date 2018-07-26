@@ -41,7 +41,7 @@ def get_numpy_data(dataset_size, number_of_bins, scale):
     bins = bins.astype(np.float32)
 
     # Add noise
-    y += np.random.normal(loc=0.0, scale=0.1, size=y.shape)
+    y += np.random.uniform(low=-0.2, high=0.2, size=y.shape)
 
     # Digitize
     data = quantize(y[:-1], bins)
