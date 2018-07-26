@@ -44,36 +44,44 @@ def categorical_loss_fn(labels, predictions, params):
         logits=logits[:,params['receptive_field']:,...]
     )
 
+def mixture_loss_normalize(value, predictions):
+    """."""
+    return (value - predictions['means'])/predictions['standard_deviations']
+
+def mixture_loss_cdf(value, predictions):
+    """."""
+    normalized_value = mixture_loss_normalize(value, predictions)
+    return 0.5*(1.0+tf.erf(normalized_value/np.sqrt(2.0)))
+
 def mixture_loss_fn(labels, predictions, params):
     """."""
-    bins = predictions['bins'][1:-1]
+    labels = tf.tile(labels, [1, 1, params['num_mixtures']])
 
-    # Calculate the cumulative distribution functions for each bin
-    # given the predicted means and standard_deviations.
-    normalized_bins = (bins - predictions['means'])/predictions['standard_deviations']
-    bin_cdfs = 0.5*(1.0+tf.erf(normalized_bins/np.sqrt(2.0)))
+    lower_bin = tf.gather(predictions['bins'], labels)
+    upper_bin = tf.gather(predictions['bins'], labels+1)
 
-    # Calculate the probabilities that the value will be in the given bin
-    bin_probabilities = bin_cdfs[...,1:] - bin_cdfs[...,:-1]
+    lower_cdf = mixture_loss_cdf(lower_bin, predictions)
+    upper_cdf = mixture_loss_cdf(upper_bin, predictions)
 
-    # Implicitly include -+infinity into the first and last bin
-    bin_probabilities = [
-        bin_cdfs[...,0,tf.newaxis],
-        bin_probabilities,
-        1.0 - bin_cdfs[...,-1,tf.newaxis]
-    ]
-    bin_probabilities = tf.concat(bin_probabilities, axis=-1)
+    # -infinity is our lowest bin
+    lower_cdf = tf.where(
+        tf.equal(labels, 0),
+        tf.zeros_like(lower_cdf),
+        lower_cdf
+    )
 
-    probability_mask = tf.one_hot(tf.squeeze(labels, axis=-1), depth=params['quantization'])
-    label_probabilties = bin_probabilities*probability_mask
-    label_probabilties = tf.reduce_sum(label_probabilties, axis=-1)
-    label_probabilties = label_probabilties[...,params['receptive_field']:]
+    # +infinity is our highest bin
+    upper_cdf = tf.where(
+        tf.equal(labels, params['quantization']-1),
+        tf.ones_like(upper_cdf),
+        upper_cdf
+    )
 
-    for key in predictions:
-        tf.summary.histogram(key, predictions[key])
+    label_probabilities = upper_cdf - lower_cdf
+    label_probabilities = tf.reduce_mean(label_probabilities, axis=-1)
 
     # Finally maximize the log probability of the observed bins
-    return tf.reduce_mean(-tf.log(label_probabilties+1e-7))
+    return tf.reduce_mean(-tf.log(label_probabilities))
 
 LOSS_FNS = {
     'regressive'  : regressive_loss_fn,

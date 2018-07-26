@@ -79,10 +79,10 @@ def main(FLAGS):
         outputs = tags['predictions']['outputs']
 
         shape = [-1 if s is None else s for s in placeholder.shape.as_list()]
-        values = np.zeros(shape[1], dtype=np.float32)
+        values = 2.0*np.random.rand(shape[1])-1.0
 
-        for i in range(1024):
-            values = update_values(session, placeholder, outputs, values, shape)
+        # for i in range(1024):
+        #     values = update_values(session, placeholder, outputs, values, shape)
 
         plt.ion()
         fig, ax = plt.subplots()

@@ -22,7 +22,7 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 
-from data.quantized_sine_wave import get_numpy_data, quantize, dequantize
+from data.stochastic_quantized_sine_wave import get_numpy_data, quantize, dequantize
 from model.wavenet_model import WaveNetModel
 
 # TODO: Figure out some util file for this function.
@@ -90,7 +90,7 @@ def main(FLAGS):
         model_dir=FLAGS.model_dir,
         model_fn=model.model_fn,
         params=dict(
-            learning_rate=1e-4
+            learning_rate=1e-3
         ),
         config=tf.estimator.RunConfig(session_config=config)
     )
