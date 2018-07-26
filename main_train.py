@@ -49,7 +49,7 @@ def main(FLAGS):
     label_channels = 1
     quantization = 64
     scale = 256.0
-    num_mixtures = 5
+    num_mixtures = 1
 
     filters = 8
     kernel_size = 2
@@ -57,7 +57,7 @@ def main(FLAGS):
     dilation_powers = [0, 1, 2, 3, 4, 5, 6, 7]
     dilations = [kernel_size**power for power in dilation_powers]
 
-    dataset_size = 1000000
+    dataset_size = 100000
     data, data_labels, bins = get_numpy_data(dataset_size, quantization, scale=scale)
 
     batch_size = 4

@@ -18,6 +18,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import numpy as np
 import tensorflow as tf
 
 # TODO: These loss functions belong in some other file?
@@ -45,13 +46,34 @@ def categorical_loss_fn(labels, predictions, params):
 
 def mixture_loss_fn(labels, predictions, params):
     """."""
-    labels = tf.gather(predictions['bins'], labels)
-    normalized_labels = (labels - predictions['means'])/predictions['standard_deviations']
+    bins = predictions['bins'][1:-1]
 
-    return tf.reduce_mean(
-        tf.square(normalized_labels[:,params['receptive_field']:,...]) +
-        predictions['log_variances'][:,params['receptive_field']:,...]
-    )
+    # Calculate the cumulative distribution functions for each bin
+    # given the predicted means and standard_deviations.
+    normalized_bins = (bins - predictions['means'])/predictions['standard_deviations']
+    bin_cdfs = 0.5*(1.0+tf.erf(normalized_bins/np.sqrt(2.0)))
+
+    # Calculate the probabilities that the value will be in the given bin
+    bin_probabilities = bin_cdfs[...,1:] - bin_cdfs[...,:-1]
+
+    # Implicitly include -+infinity into the first and last bin
+    bin_probabilities = [
+        bin_cdfs[...,0,tf.newaxis],
+        bin_probabilities,
+        1.0 - bin_cdfs[...,-1,tf.newaxis]
+    ]
+    bin_probabilities = tf.concat(bin_probabilities, axis=-1)
+
+    probability_mask = tf.one_hot(tf.squeeze(labels, axis=-1), depth=params['quantization'])
+    label_probabilties = bin_probabilities*probability_mask
+    label_probabilties = tf.reduce_sum(label_probabilties, axis=-1)
+    label_probabilties = label_probabilties[...,params['receptive_field']:]
+
+    for key in predictions:
+        tf.summary.histogram(key, predictions[key])
+
+    # Finally maximize the log probability of the observed bins
+    return tf.reduce_mean(-tf.log(label_probabilties+1e-7))
 
 LOSS_FNS = {
     'regressive'  : regressive_loss_fn,

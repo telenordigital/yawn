@@ -272,13 +272,15 @@ class WaveNetModel(object):
                 )
 
             if self.version == 'mixture':
-                means, log_variances = tf.split(
+                means, log_standard_deviations = tf.split(
                     net, self.outputs_per_distribution, axis=channel_axis
                 )
-                predictions['means'] = means
-                predictions['log_variances'] = log_variances
+                predictions['means'] = tf.identity(means, name='means')
+                predictions['log_standard_deviations'] = tf.identity(
+                    log_standard_deviations, name='log_standard_deviations'
+                )
                 predictions['standard_deviations'] = tf.exp(
-                    0.5*log_variances, name='standard_deviations'
+                    log_standard_deviations, name='standard_deviations'
                 )
                 predictions['values'] = tf.reduce_mean(means, axis=-1)
 
