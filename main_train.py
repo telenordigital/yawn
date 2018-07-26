@@ -90,7 +90,8 @@ def main(FLAGS):
         model_dir=FLAGS.model_dir,
         model_fn=model.model_fn,
         params=dict(
-            learning_rate=1e-3
+            learning_rate=1e-3,
+            add_summaries=True
         ),
         config=tf.estimator.RunConfig(session_config=config)
     )

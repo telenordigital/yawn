@@ -95,9 +95,10 @@ def train_fn(loss, global_step, learning_rate):
 
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
-        train_op = optimizer.minimize(loss, global_step=global_step)
+        grads_and_tvars = optimizer.compute_gradients(loss)
+        train_op = optimizer.apply_gradients(grads_and_tvars, global_step=global_step)
 
-    return train_op
+    return train_op, grads_and_tvars
 
 def model_fn(features, labels, mode, params):
     """Model function for WaveNet.
@@ -121,6 +122,7 @@ def model_fn(features, labels, mode, params):
     """
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
     channel_axis = 1 if params['data_format'] == 'channels_first' else 2
+    add_summaries = params.get('add_summaries', False)
 
     with tf.variable_scope('model'):
         global_step = tf.train.get_or_create_global_step()
@@ -146,7 +148,20 @@ def model_fn(features, labels, mode, params):
         )
 
     with tf.variable_scope('train'):
-        train_op = train_fn(loss, global_step, learning_rate=params['learning_rate'])
+        train_op, grads_and_tvars = train_fn(
+            loss, global_step, learning_rate=params['learning_rate']
+        )
+
+    if add_summaries:
+        for tvar in tf.trainable_variables():
+            name = tvar.name.replace(':', '_')
+            tf.summary.histogram('{}_summary'.format(name), tvar)
+
+        for name in predictions:
+            tf.summary.histogram('predictions/{}'.format(name), predictions[name])
+
+        with tf.variable_scope('gradients'):
+            tf.contrib.training.add_gradients_summaries(grads_and_tvars)
 
     return tf.estimator.EstimatorSpec(
         mode=mode,
