@@ -124,7 +124,6 @@ def model_fn(features, labels, mode, params):
     """
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
     channel_axis = 1 if params['data_format'] == 'channels_first' else 2
-    add_summaries = params.get('add_summaries', False)
 
     with tf.variable_scope('model'):
         global_step = tf.train.get_or_create_global_step()
@@ -154,7 +153,7 @@ def model_fn(features, labels, mode, params):
             loss, global_step, learning_rate=params['learning_rate']
         )
 
-    if add_summaries:
+    if params.get('add_summaries', False):
         for tvar in tf.trainable_variables():
             tf.summary.histogram('{}_summary'.format(tvar.op.name), tvar)
             tf.summary.scalar('{}_norm_summary'.format(tvar.op.name), tf.global_norm([tvar]))
