@@ -156,8 +156,8 @@ def model_fn(features, labels, mode, params):
 
     if add_summaries:
         for tvar in tf.trainable_variables():
-            name = tvar.name.replace(':', '_')
-            tf.summary.histogram('{}_summary'.format(name), tvar)
+            tf.summary.histogram('{}_summary'.format(tvar.op.name), tvar)
+            tf.summary.scalar('{}_norm_summary'.format(tvar.op.name), tf.global_norm([tvar]))
 
         for name in predictions:
             tf.summary.histogram('predictions/{}'.format(name), predictions[name])
