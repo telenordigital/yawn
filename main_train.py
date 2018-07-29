@@ -52,6 +52,7 @@ def main(FLAGS):
     num_mixtures = 2
 
     filters = 8
+    initial_kernel = 8
     kernel_size = 2
 
     dilation_powers = [0, 1, 2, 3, 4, 5, 6, 7]
@@ -69,6 +70,7 @@ def main(FLAGS):
 
     model = WaveNetModel(
         filters=filters,
+        initial_kernel=initial_kernel,
         kernel_size=kernel_size,
         dilations=dilations,
         quantization=quantization,
@@ -99,7 +101,7 @@ def main(FLAGS):
     classifier.train(
         input_fn=tf.estimator.inputs.numpy_input_fn(
             data, data_labels, batch_size=batch_size, shuffle=True,
-            num_epochs=1000
+            num_epochs=200
         )
     )
 

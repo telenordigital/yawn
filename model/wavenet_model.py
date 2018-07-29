@@ -147,7 +147,7 @@ class WaveNetModel(object):
     )
 
     @staticmethod
-    def calculate_receptive_field(kernel_size, dilations):
+    def calculate_receptive_field(initial_kernel, kernel_size, dilations):
         """Calculates the receptive field of an output.
 
         Arguments:
@@ -159,11 +159,11 @@ class WaveNetModel(object):
           The receptive field of an output. The number of data points it can theoretically view
           backwards from the input, indirectly through all the hidden layers.
         """
-        return (kernel_size-1) * sum(dilations)
+        return (initial_kernel-1) + (kernel_size-1) * sum(dilations)
 
     def __init__(
             self,
-            filters, kernel_size, dilations,
+            filters, initial_kernel, kernel_size, dilations,
             bins, quantization, num_mixtures=None,
             data_format=None, version='categorical'
     ):
@@ -192,19 +192,21 @@ class WaveNetModel(object):
         self.version = version
 
         self.filters = filters
+        self.initial_kernel = initial_kernel
         self.kernel_size = kernel_size
         self.dilations = dilations
         self.bins = bins
         self.quantization = quantization
         self.num_mixtures = num_mixtures
         self.elements_per_mixture = None
-        self.receptive_field = self.calculate_receptive_field(kernel_size, dilations)
+        self.receptive_field = self.calculate_receptive_field(initial_kernel, kernel_size, dilations)
 
         if self.version == 'regressive':
             self.output_channels = 1
         if self.version == 'categorical':
             self.output_channels = quantization
         if self.version == 'mixture':
+            # 2 outputs per distribution, mean and log standard deviation
             self.outputs_per_distribution = 2
             self.output_channels = self.num_mixtures*self.outputs_per_distribution
 
@@ -225,7 +227,7 @@ class WaveNetModel(object):
         with tf.variable_scope('initial'):
             net = causal_conv1d(
                 inputs=net, filters=self.filters,
-                kernel_size=self.kernel_size, dilation_rate=1,
+                kernel_size=self.initial_kernel, dilation_rate=1,
                 data_format=self.data_format
             )
 
