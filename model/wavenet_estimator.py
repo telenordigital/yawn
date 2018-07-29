@@ -35,10 +35,6 @@ def categorical_loss_fn(labels, predictions, params):
     """."""
     logits = predictions['logits']
 
-    # tf.losses seem to expect `channels_last`
-    if params['data_format'] == 'channels_first':
-        logits = tf.transpose(logits, [0, 2, 1], name='channels_last_logits')
-
     return tf.losses.sparse_softmax_cross_entropy(
         labels=labels[:,params['receptive_field']:,...],
         logits=logits[:,params['receptive_field']:,...]
@@ -50,8 +46,9 @@ def mixture_loss_normalize(value, predictions):
 
 def mixture_loss_cdf(value, predictions):
     """."""
+    scaling = tf.constant(1.0/np.sqrt(2.0), dtype=tf.float32)
     normalized_value = mixture_loss_normalize(value, predictions)
-    return 0.5*(1.0+tf.erf(normalized_value/np.sqrt(2.0)))
+    return 0.5*(1.0+tf.erf(normalized_value*scaling))
 
 def mixture_loss_fn(labels, predictions, params):
     """."""
@@ -63,14 +60,14 @@ def mixture_loss_fn(labels, predictions, params):
     lower_cdf = mixture_loss_cdf(lower_bin, predictions)
     upper_cdf = mixture_loss_cdf(upper_bin, predictions)
 
-    # -infinity is our lowest bin
+    # -infinity is our lowest bin which has cdf == 0.0
     lower_cdf = tf.where(
         tf.equal(labels, 0),
         tf.zeros_like(lower_cdf),
         lower_cdf
     )
 
-    # +infinity is our highest bin
+    # +infinity is our highest bin which has cdf == 1.0
     upper_cdf = tf.where(
         tf.equal(labels, params['quantization']-1),
         tf.ones_like(upper_cdf),
@@ -80,10 +77,11 @@ def mixture_loss_fn(labels, predictions, params):
     label_probabilities = upper_cdf - lower_cdf
     label_probabilities = tf.reduce_mean(label_probabilities, axis=-1)
 
+    # Clip to a minimum of 1e-7 so that the tf.log call doesn't blow up
     label_probabilities = tf.clip_by_value(label_probabilities, 1e-7, 2.0)
 
     # Finally maximize the log probability of the observed bins
-    return tf.reduce_mean(-tf.log(label_probabilities))
+    return tf.reduce_mean(-tf.log(label_probabilities[:,params['receptive_field']:,...]))
 
 LOSS_FNS = {
     'regressive'  : regressive_loss_fn,
@@ -122,12 +120,9 @@ def model_fn(features, labels, mode, params):
     Returns:
       A tf.estimator.EstimatorSpec for the given mode.
     """
-    is_training = (mode == tf.estimator.ModeKeys.TRAIN)
-    channel_axis = 1 if params['data_format'] == 'channels_first' else 2
-
     with tf.variable_scope('model'):
         global_step = tf.train.get_or_create_global_step()
-        predictions = params['model'](features, is_training=is_training)
+        predictions = params['model'](features, mode=mode)
 
     if mode == tf.estimator.ModeKeys.PREDICT:
         return tf.estimator.EstimatorSpec(

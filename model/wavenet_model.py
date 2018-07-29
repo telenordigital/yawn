@@ -208,7 +208,7 @@ class WaveNetModel(object):
             self.outputs_per_distribution = 2
             self.output_channels = self.num_mixtures*self.outputs_per_distribution
 
-    def __call__(self, inputs, is_training=False):
+    def __call__(self, inputs, mode):
         """Adds operations to the current graph for the logit output.
 
         Arguments:
@@ -220,10 +220,6 @@ class WaveNetModel(object):
           A string->tensor dictionary of predictions based on the model version.
         """
         net = inputs
-
-        # Currently unused
-        _ = is_training
-
         channel_axis = 1 if self.data_format == 'channels_first' else 2
 
         with tf.variable_scope('initial'):
@@ -253,11 +249,18 @@ class WaveNetModel(object):
             )
 
         with tf.variable_scope('predictions'):
+            if (mode == tf.estimator.ModeKeys.EVAL or
+                mode == tf.estimator.ModeKeys.TRAIN):
+                # Loss functions assume channels_last
+                if self.data_format == 'channels_first':
+                    net = tf.transpose(net, [0, 2, 1], name='channels_last_output')
+                    channel_axis = 2
+
             predictions = dict(raw_output=net)
             predictions['bins'] = tf.constant(self.bins, name='bins')
 
             if self.version == 'regressive':
-                predictions['values'] = tf.squeeze(net, axis=-1, name='values')
+                predictions['values'] = tf.squeeze(net, axis=channel_axis, name='values')
 
             if self.version == 'categorical':
                 predictions['logits'] = tf.identity(net, name='logits')
@@ -285,7 +288,7 @@ class WaveNetModel(object):
                 predictions['inverse_standard_deviations'] = tf.exp(
                     -log_standard_deviations, name='inverse_standard_deviations'
                 )
-                predictions['values'] = tf.reduce_mean(means, axis=-1)
+                predictions['values'] = tf.reduce_mean(means, axis=channel_axis)
 
         return predictions
 
