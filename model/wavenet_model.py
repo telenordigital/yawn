@@ -206,8 +206,8 @@ class WaveNetModel(object):
         if self.version == 'categorical':
             self.output_channels = quantization
         if self.version == 'mixture':
-            # 2 outputs per distribution, mean and log standard deviation
-            self.outputs_per_distribution = 2
+            # 3 outputs per distribution, mean, log standard deviation and logit coefficients
+            self.outputs_per_distribution = 3
             self.output_channels = self.num_mixtures*self.outputs_per_distribution
 
     def __call__(self, inputs, mode):
@@ -277,20 +277,33 @@ class WaveNetModel(object):
                 )
 
             if self.version == 'mixture':
-                means, log_standard_deviations = tf.split(
+                means, log_standard_deviations, logit_coefficients = tf.split(
                     net, self.outputs_per_distribution, axis=channel_axis
                 )
+
                 predictions['means'] = tf.identity(means, name='means')
                 predictions['log_standard_deviations'] = tf.identity(
                     log_standard_deviations, name='log_standard_deviations'
                 )
+                predictions['logit_coefficients'] = tf.identity(
+                    logit_coefficients, name='logit_coefficients'
+                )
+
                 predictions['standard_deviations'] = tf.exp(
                     log_standard_deviations, name='standard_deviations'
                 )
                 predictions['inverse_standard_deviations'] = tf.exp(
                     -log_standard_deviations, name='inverse_standard_deviations'
                 )
-                predictions['values'] = tf.reduce_mean(means, axis=channel_axis)
+
+                predictions['coefficients'] = tf.nn.softmax(
+                    predictions['logit_coefficients'], axis=channel_axis
+                )
+
+                predictions['values'] = tf.reduce_sum(
+                    predictions['means']*predictions['coefficients'],
+                    axis=channel_axis
+                )
 
         return predictions
 

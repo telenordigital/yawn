@@ -60,18 +60,20 @@ def update_plot(session, placeholder, outputs, lines, values, shape):
 
     means = predictions['means'][0,-1]
     inverse_standard_deviations = predictions['inverse_standard_deviations'][0,-1]
+    coefficients = predictions['coefficients'][0,-1]
 
     x = np.linspace(-2.0, 2.0, 1001).reshape(-1, 1)
     y = inverse_standard_deviations/np.sqrt(2.0*np.pi) * np.exp(
         -((x-means)*inverse_standard_deviations)**2/2.0
     )
 
-    y = y.mean(axis=-1)
+    y = (y*coefficients).sum(axis=-1)
 
     value = np.random.normal(means, predictions['standard_deviations'][0,-1])
+    value = (value*coefficients).sum()
 
     values[:-1] = values[1:]
-    values[-1] = value.mean()
+    values[-1] = value
     lines[0].set_ydata(values)
 
     lines[1].set_xdata(x)
