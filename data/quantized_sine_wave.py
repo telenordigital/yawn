@@ -48,3 +48,11 @@ def get_numpy_data(dataset_size, number_of_bins, scale):
     data = dequantize(data, bins)
 
     return data, data_labels, bins
+
+if __name__ == '__main__':
+    import matplotlib.pyplot as plt
+
+    data, _, _ = get_numpy_data(1000, 64, 2)
+    plt.plot(data)
+    plt.grid(True)
+    plt.show()
