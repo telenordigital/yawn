@@ -91,7 +91,7 @@ def main(FLAGS):
         serve = tf.saved_model.loader.load(session, ['serve'], FLAGS.import_dir)
         tags = extract_tags(serve.signature_def, session.graph)
 
-        placeholder = tags['predictions']['inputs']['input']
+        placeholder = tags['predictions']['inputs']['inputs']
         outputs = tags['predictions']['outputs']
 
         shape = [-1 if s is None else s for s in placeholder.shape.as_list()]

@@ -123,6 +123,8 @@ def model_fn(features, labels, mode, params):
     Returns:
       A tf.estimator.EstimatorSpec for the given mode.
     """
+    features = features['inputs']
+
     with tf.variable_scope('model'):
         global_step = tf.train.get_or_create_global_step()
         predictions = params['model'](features, mode=mode)

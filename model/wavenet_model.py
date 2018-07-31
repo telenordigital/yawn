@@ -261,6 +261,7 @@ class WaveNetModel(object):
             predictions = dict(raw_output=net)
             predictions['bins'] = tf.constant(self.bins, name='bins')
 
+            # TODO: These belong in separate functions?
             if self.version == 'regressive':
                 predictions['values'] = tf.squeeze(net, axis=channel_axis, name='values')
 

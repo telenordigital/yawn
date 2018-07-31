@@ -100,20 +100,20 @@ def main(FLAGS):
 
     classifier.train(
         input_fn=tf.estimator.inputs.numpy_input_fn(
-            data, data_labels, batch_size=batch_size, shuffle=True,
-            num_epochs=200
+            { 'inputs' : data }, data_labels, batch_size=batch_size, shuffle=True,
+            num_epochs=1
         )
     )
 
     def serving_input_receiver_fn():
-        features = tf.placeholder(
+        features = { 'inputs' : tf.placeholder(
             dtype=tf.float32,
             shape=data_format_to_shape(
                 None, 1+model.receptive_field, input_channels, data_format=model.data_format
             ),
             name='inputs'
-        )
-        return tf.estimator.export.TensorServingInputReceiver(
+        ) }
+        return tf.estimator.export.ServingInputReceiver(
             features=features,
             receiver_tensors=features
         )
