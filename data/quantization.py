@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Test data in the form of a quantized sine wave."""
+"""Routines for dealing with quantization."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -20,31 +20,16 @@ from __future__ import print_function
 
 import numpy as np
 
-from data.quantization import quantiles, quantize, dequantize
-
-def get_numpy_data(dataset_size, number_of_bins, scale):
+def quantiles(data, number_of_bins):
     """."""
-    limits = 2.0*np.pi*scale
+    bins = np.percentile(data, np.linspace(0, 100, 1+number_of_bins), interpolation='linear')
+    return bins.astype(np.float32)
 
-    x = np.linspace(-limits, limits, dataset_size+1)
-    y = np.sin(x)
+def quantize(data, bins, right=False, dtype=np.int64):
+    """."""
+    quantized = np.digitize(data, bins[1:-1], right=right)
+    return quantized.astype(dtype)
 
-    # Find a roughly even quantization
-    bins = quantiles(y, number_of_bins)
-
-    # Digitize
-    data = quantize(y[:-1], bins)
-    data_labels = quantize(y[1:], bins, dtype=np.int32)
-
-    # Turn feature data into sample points again
-    data = dequantize(data, bins)
-
-    return data, data_labels, bins
-
-if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-
-    data, _, _ = get_numpy_data(1000, 64, 2)
-    plt.plot(data)
-    plt.grid(True)
-    plt.show()
+def dequantize(digits, bins):
+    """."""
+    return bins[digits]

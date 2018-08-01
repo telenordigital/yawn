@@ -22,7 +22,7 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 
-from data.stochastic_quantized_sine_wave import get_numpy_data, quantize, dequantize
+from data.stochastic_quantized_sine_wave import get_numpy_data
 from model.wavenet_model import WaveNetModel
 
 # TODO: Figure out some util file for this function.

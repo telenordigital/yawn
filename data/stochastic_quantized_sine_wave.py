@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Test data in the form of a quantized sine wave."""
+"""Test data in the form of a quantized sine wave with added noise."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -20,14 +20,7 @@ from __future__ import print_function
 
 import numpy as np
 
-def quantize(data, bins, right=False, dtype=np.int64):
-    """."""
-    quantized = np.digitize(data, bins[1:-1], right=right)
-    return quantized.astype(dtype)
-
-def dequantize(digits, bins):
-    """."""
-    return bins[digits]
+from data.quantization import quantiles, quantize, dequantize
 
 def get_numpy_data(dataset_size, number_of_bins, scale):
     """."""
@@ -37,8 +30,7 @@ def get_numpy_data(dataset_size, number_of_bins, scale):
     y = np.sin(x)
 
     # Find a roughly even quantization
-    bins = np.percentile(y, np.linspace(0, 100, 1+number_of_bins), interpolation='linear')
-    bins = bins.astype(np.float32)
+    bins = quantiles(y, number_of_bins)
 
     # Add noise
     y += np.random.uniform(low=-0.2, high=0.2, size=y.shape)
