@@ -19,6 +19,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from data.quantization import requantize
+
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
@@ -61,8 +63,9 @@ def update_plot(session, placeholder, outputs, lines, values, shape):
     means = predictions['means'][0,-1]
     inverse_standard_deviations = predictions['inverse_standard_deviations'][0,-1]
     coefficients = predictions['coefficients'][0,-1]
+    bins = predictions['bins']
 
-    x = np.linspace(-2.0, 2.0, 1001).reshape(-1, 1)
+    x = np.linspace(bins[0]-0.1, bins[-1]+0.1, 1001).reshape(-1, 1)
     y = inverse_standard_deviations/np.sqrt(2.0*np.pi) * np.exp(
         -((x-means)*inverse_standard_deviations)**2/2.0
     )
@@ -73,11 +76,11 @@ def update_plot(session, placeholder, outputs, lines, values, shape):
     value = (value*coefficients).sum()
 
     values[:-1] = values[1:]
-    values[-1] = value
+    values[-1] = requantize(value, bins)
     lines[0].set_ydata(values)
 
-    lines[1].set_xdata(x)
-    lines[1].set_ydata(y)
+    lines[1].set_ydata(x)
+    lines[1].set_xdata(y)
 
     plt.draw()
     plt.pause(1.0/60)
@@ -94,20 +97,22 @@ def main(FLAGS):
         placeholder = tags['predictions']['inputs']['input']
         outputs = tags['predictions']['outputs']
 
+        bins = session.run(outputs['bins'])
+
         shape = [-1 if s is None else s for s in placeholder.shape.as_list()]
-        values = 2.0*np.random.rand(shape[1])-1.0
+        values = np.random.choice(bins, size=shape[1])
 
         plt.ion()
         fig, axes = plt.subplots(2)
         ax1, ax2 = axes
 
         l1, = ax1.plot(values)
-        ax1.set_ylim(-1.1, 1.1)
+        ax1.set_ylim(bins[0]-0.1, bins[-1]+0.1)
         ax1.grid(True)
 
         l2, = ax2.plot([])
-        ax2.set_ylim(-0.1, 4.1)
-        ax2.set_xlim(-2.1, 2.1)
+        ax2.set_ylim(bins[0]-0.1, bins[-1]+0.1)
+        ax2.set_xlim(-0.1, 6.1)
         lines = (l1, l2)
 
         while True:

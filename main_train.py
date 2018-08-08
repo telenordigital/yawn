@@ -22,7 +22,7 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 
-from data.stochastic_quantized_sine_wave import get_numpy_data
+from data.existing_numpy_data import get_numpy_data
 from model.wavenet_model import WaveNetModel
 
 # TODO: Figure out some util file for this function.
@@ -47,26 +47,19 @@ def main(FLAGS):
     """."""
     input_channels = 1
     label_channels = 1
-    quantization = 64
+    quantization = 256
     scale = 256.0
-    num_mixtures = 2
+    num_mixtures = 1
 
-    filters = 8
+    filters = 2
     initial_kernel = 8
     kernel_size = 2
 
-    dilation_powers = [0, 1, 2, 3, 4, 5, 6, 7]
+    dilation_powers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     dilations = [kernel_size**power for power in dilation_powers]
 
-    dataset_size = 100000
-    data, data_labels, bins = get_numpy_data(dataset_size, quantization, scale=scale)
-
-    batch_size = 4
-    sequence_length = 1024
-
-    dataset_size = (dataset_size//sequence_length)*sequence_length
-    data = data[:dataset_size]
-    data_labels = data_labels[:dataset_size]
+    data, data_labels, bins = get_numpy_data('../data.npy', quantization)
+    dataset_size = len(data)
 
     model = WaveNetModel(
         filters=filters,
@@ -79,6 +72,13 @@ def main(FLAGS):
         data_format='channels_last',
         version='mixture'
     )
+
+    batch_size = 1
+    sequence_length = 4*model.receptive_field
+
+    dataset_size = (dataset_size//sequence_length)*sequence_length
+    data = data[:dataset_size]
+    data_labels = data_labels[:dataset_size]
 
     data = data.reshape(
         data_format_to_shape(-1, sequence_length, input_channels, data_format=model.data_format)
@@ -101,7 +101,7 @@ def main(FLAGS):
     classifier.train(
         input_fn=tf.estimator.inputs.numpy_input_fn(
             data, data_labels, batch_size=batch_size, shuffle=True,
-            num_epochs=200
+            num_epochs=100
         )
     )
 

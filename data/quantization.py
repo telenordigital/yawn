@@ -33,3 +33,7 @@ def quantize(data, bins, right=False, dtype=np.int64):
 def dequantize(digits, bins):
     """."""
     return bins[digits]
+
+def requantize(data, bins):
+    """."""
+    return dequantize(quantize(data, bins), bins)

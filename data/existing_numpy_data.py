@@ -22,12 +22,14 @@ import numpy as np
 
 from data.quantization import quantiles, quantize, dequantize
 
-def get_numpy_data(dataset_size, number_of_bins, scale):
+def get_numpy_data(numpy_filename, number_of_bins):
     """."""
-    limits = 2.0*np.pi*scale
+    y = np.load(numpy_filename)
 
-    x = np.linspace(-limits, limits, dataset_size+1)
-    y = np.sin(x)
+    mean = y.mean()
+    std = y.std()
+
+    y = (y-mean)/std
 
     # Find a roughly even quantization
     bins = quantiles(y, number_of_bins)
@@ -42,9 +44,16 @@ def get_numpy_data(dataset_size, number_of_bins, scale):
     return data, data_labels, bins
 
 if __name__ == '__main__':
+    import sys
     import matplotlib.pyplot as plt
 
-    data, _, _ = get_numpy_data(1000, 64, 2)
+    if len(sys.argv) < 2:
+        print('usage: {} numpy_filename'.format(sys.argv[0]))
+        exit(1)
+
+    data, _, bins = get_numpy_data(numpy_filename=sys.argv[1], number_of_bins=1024)
+    print(bins)
+    print(data.shape)
     plt.plot(data)
     plt.grid(True)
     plt.show()
