@@ -19,11 +19,14 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from data.quantization import requantize
+from data.quantization import requantize, dequantize
+from data.existing_numpy_data import get_numpy_data
 
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
+
+from scipy import special
 
 # TODO: Find some util file to store these?
 def extract_tensors(signature_def, graph):
@@ -51,25 +54,41 @@ def extract_tags(signature_def, graph):
 
     return output
 
-def update_values(session, placeholder, outputs, values, shape):
+def probability_setup(n_values, bins):
+    """."""
+    fig, axes = plt.subplots(2)
+    ax1, ax2 = axes
+
+    l1, = ax1.plot(np.zeros(n_values))
+    ax1.set_ylim(bins[0]-0.1, bins[-1]+0.1)
+    ax1.grid(True)
+    ax1.set_xlabel('$t$')
+    ax1.set_ylabel('$v$')
+
+    l2, = ax2.plot([], [], '--bo', markersize=2.0, linewidth=1.0)
+    ax2.grid(True)
+    ax2.set_xlim(bins[0]-0.1, bins[-1]+0.1)
+    ax2.set_ylim(-0.1, 1.1)
+    ax2.set_xlabel('$v$')
+    ax2.set_ylabel('$p$')
+
+    return fig, axes, (l1, l2)
+
+def mixture_update(session, placeholder, outputs, lines, values, shape):
     """."""
     predictions = session.run(outputs, feed_dict={placeholder : values.reshape(shape)})
-    return predictions
-
-def update_plot(session, placeholder, outputs, lines, values, shape):
-    """."""
-    predictions = update_values(session, placeholder, outputs, values, shape)
 
     means = predictions['means'][0,-1]
     inverse_standard_deviations = predictions['inverse_standard_deviations'][0,-1]
     coefficients = predictions['coefficients'][0,-1]
     bins = predictions['bins']
 
-    x = np.linspace(bins[0]-0.1, bins[-1]+0.1, 1001).reshape(-1, 1)
-    y = inverse_standard_deviations/np.sqrt(2.0*np.pi) * np.exp(
-        -((x-means)*inverse_standard_deviations)**2/2.0
-    )
-
+    reshaped_bins = bins.reshape(-1, 1)
+    x = 0.5*(bins[1:] + bins[:-1])
+    y = 0.5*(1.0 + special.erf((reshaped_bins-means)*inverse_standard_deviations*np.sqrt(0.5)))
+    y[0] = 0.0
+    y[-1] = 1.0
+    y = np.diff(y, axis=0)
     y = (y*coefficients).sum(axis=-1)
 
     value = np.random.normal(means, predictions['standard_deviations'][0,-1])
@@ -77,15 +96,42 @@ def update_plot(session, placeholder, outputs, lines, values, shape):
 
     values[:-1] = values[1:]
     values[-1] = requantize(value, bins)
-    lines[0].set_ydata(values)
 
-    lines[1].set_ydata(x)
-    lines[1].set_xdata(y)
+    lines[0].set_ydata(values)
+    lines[1].set_data(x, y)
 
     plt.draw()
     plt.pause(1.0/60)
 
     return values
+
+def categorical_update(session, placeholder, outputs, lines, values, shape):
+    """."""
+    predictions = session.run(outputs, feed_dict={placeholder : values.reshape(shape)})
+
+    probabilities = predictions['probabilities'][0, -1]
+    bins = predictions['bins']
+
+    x = 0.5*(bins[1:] + bins[:-1])
+    y = probabilities
+
+    value = np.random.choice(bins[:-1], p=probabilities)
+
+    values[:-1] = values[1:]
+    values[-1] = requantize(value, bins)
+
+    lines[0].set_ydata(values)
+    lines[1].set_data(x, y)
+
+    plt.draw()
+    plt.pause(1.0/60)
+
+    return values
+
+VERSIONS = {
+    'mixture' : (probability_setup, mixture_update),
+    'categorical' : (probability_setup, categorical_update)
+}
 
 def main(FLAGS):
     """."""
@@ -97,27 +143,23 @@ def main(FLAGS):
         placeholder = tags['predictions']['inputs']['input']
         outputs = tags['predictions']['outputs']
 
+        if 'coefficients' in outputs:
+            version = 'mixture'
+        else:
+            version = 'categorical'
+        setup, update = VERSIONS[version]
+
         bins = session.run(outputs['bins'])
 
         shape = [-1 if s is None else s for s in placeholder.shape.as_list()]
         values = np.random.choice(bins, size=shape[1])
 
         plt.ion()
-        fig, axes = plt.subplots(2)
-        ax1, ax2 = axes
-
-        l1, = ax1.plot(values)
-        ax1.set_ylim(bins[0]-0.1, bins[-1]+0.1)
-        ax1.grid(True)
-
-        l2, = ax2.plot([])
-        ax2.set_ylim(bins[0]-0.1, bins[-1]+0.1)
-        ax2.set_xlim(-0.1, 6.1)
-        lines = (l1, l2)
+        fig, axes, lines = setup(n_values=shape[1], bins=bins)
 
         while True:
             try:
-                values = update_plot(session, placeholder, outputs, lines, values, shape)
+                values = update(session, placeholder, outputs, lines, values, shape)
             finally:
                 plt.ioff()
 

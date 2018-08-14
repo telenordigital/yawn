@@ -22,7 +22,7 @@ from __future__ import print_function
 import numpy as np
 import tensorflow as tf
 
-from data.existing_numpy_data import get_numpy_data
+from data.stochastic_quantized_sine_wave import get_numpy_data
 from model.wavenet_model import WaveNetModel
 
 # TODO: Figure out some util file for this function.
@@ -47,19 +47,22 @@ def main(FLAGS):
     """."""
     input_channels = 1
     label_channels = 1
-    quantization = 256
-    scale = 256.0
-    num_mixtures = 1
+    quantization = 64
+    scale = 4
+    num_mixtures = 2
 
-    filters = 2
+    filters = 8
     initial_kernel = 8
     kernel_size = 2
 
-    dilation_powers = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    dilation_powers = [0, 1, 2, 3, 4, 5, 6]
     dilations = [kernel_size**power for power in dilation_powers]
 
-    data, data_labels, bins = get_numpy_data('../data.npy', quantization)
+    # data, data_labels, bins = get_numpy_data('../data.npy', quantization)
+    data, data_labels, bins = get_numpy_data(2000, quantization, scale=scale)
     dataset_size = len(data)
+
+    assert np.all(np.diff(bins) > 0.0)
 
     model = WaveNetModel(
         filters=filters,
@@ -70,15 +73,21 @@ def main(FLAGS):
         num_mixtures=num_mixtures,
         bins=bins,
         data_format='channels_last',
-        version='mixture'
+        version='categorical'
     )
 
-    batch_size = 1
-    sequence_length = 4*model.receptive_field
+    batch_size = 2
+    sequence_length = model.receptive_field + min(512, model.receptive_field)
 
-    dataset_size = (dataset_size//sequence_length)*sequence_length
-    data = data[:dataset_size]
-    data_labels = data_labels[:dataset_size]
+    sampled_data = []
+    sampled_labels = []
+    for i in range(2000*dataset_size//sequence_length):
+        index = np.random.randint(dataset_size-sequence_length)
+        sampled_data.append(data[index:index+sequence_length])
+        sampled_labels.append(data_labels[index:index+sequence_length])
+
+    data = np.array(sampled_data)
+    data_labels = np.array(sampled_labels)
 
     data = data.reshape(
         data_format_to_shape(-1, sequence_length, input_channels, data_format=model.data_format)
@@ -101,7 +110,7 @@ def main(FLAGS):
     classifier.train(
         input_fn=tf.estimator.inputs.numpy_input_fn(
             data, data_labels, batch_size=batch_size, shuffle=True,
-            num_epochs=100
+            num_epochs=2
         )
     )
 
