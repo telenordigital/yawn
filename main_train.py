@@ -73,7 +73,7 @@ def main(FLAGS):
         num_mixtures=num_mixtures,
         bins=bins,
         data_format='channels_last',
-        version='categorical'
+        version='mixture'
     )
 
     batch_size = 2

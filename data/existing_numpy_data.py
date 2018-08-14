@@ -22,18 +22,16 @@ import numpy as np
 
 from data.quantization import quantiles, quantize, dequantize
 
-def get_numpy_data(numpy_filename, number_of_bins, bins=None, axis=None):
+def get_numpy_data(numpy_filename, number_of_bins, normalize=False, bins=None, quantile_axis=None):
     """."""
     y = np.load(numpy_filename)
 
-    mean = y.mean()
-    std = y.std()
-
-    y = (y-mean)/std
+    if normalize:
+        y = (y-y.mean())/y.std()
 
     if bins is None:
         # Find a roughly even quantization
-        bins = quantiles(y, number_of_bins, axis=axis)
+        bins = quantiles(y, number_of_bins, axis=quantile_axis)
 
     # Digitize
     data = quantize(y[:-1], bins)
