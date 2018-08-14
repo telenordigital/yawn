@@ -22,7 +22,7 @@ import numpy as np
 
 from data.quantization import quantiles, quantize, dequantize
 
-def get_numpy_data(numpy_filename, number_of_bins, bins=None):
+def get_numpy_data(numpy_filename, number_of_bins, bins=None, axis=None):
     """."""
     y = np.load(numpy_filename)
 
@@ -33,7 +33,7 @@ def get_numpy_data(numpy_filename, number_of_bins, bins=None):
 
     if bins is None:
         # Find a roughly even quantization
-        bins = quantiles(y, number_of_bins)
+        bins = quantiles(y, number_of_bins, axis=axis)
 
     # Digitize
     data = quantize(y[:-1], bins)

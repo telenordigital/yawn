@@ -20,9 +20,9 @@ from __future__ import print_function
 
 import numpy as np
 
-def quantiles(data, number_of_bins):
+def quantiles(data, number_of_bins, axis=None):
     """."""
-    bins = np.percentile(data, np.linspace(0, 100, 1+number_of_bins), interpolation='linear')
+    bins = np.percentile(data, np.linspace(0, 100, 1+number_of_bins), axis=axis, interpolation='linear')
     return bins.astype(np.float32)
 
 def quantize(data, bins, right=False, dtype=np.int64):
