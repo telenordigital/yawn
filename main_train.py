@@ -61,6 +61,7 @@ def main(FLAGS):
     # data, data_labels, bins = get_numpy_data('../data.npy', quantization)
     data, data_labels, bins = get_numpy_data(2000, quantization, scale=scale)
     dataset_size = len(data)
+    mock_epochs = 2000
 
     assert np.all(np.diff(bins) > 0.0)
 
@@ -81,7 +82,7 @@ def main(FLAGS):
 
     sampled_data = []
     sampled_labels = []
-    for i in range(2000*dataset_size//sequence_length):
+    for i in range(mock_epochs*dataset_size//sequence_length):
         index = np.random.randint(dataset_size-sequence_length)
         sampled_data.append(data[index:index+sequence_length])
         sampled_labels.append(data_labels[index:index+sequence_length])
