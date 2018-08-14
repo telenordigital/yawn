@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Test data in the form of a quantized sine wave."""
+"""Generate quantized features and labels from existing numpy data."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -22,7 +22,7 @@ import numpy as np
 
 from data.quantization import quantiles, quantize, dequantize
 
-def get_numpy_data(numpy_filename, number_of_bins):
+def get_numpy_data(numpy_filename, number_of_bins, bins=None):
     """."""
     y = np.load(numpy_filename)
 
@@ -31,8 +31,9 @@ def get_numpy_data(numpy_filename, number_of_bins):
 
     y = (y-mean)/std
 
-    # Find a roughly even quantization
-    bins = quantiles(y, number_of_bins)
+    if bins is None:
+        # Find a roughly even quantization
+        bins = quantiles(y, number_of_bins)
 
     # Digitize
     data = quantize(y[:-1], bins)
