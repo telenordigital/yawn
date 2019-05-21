@@ -33,7 +33,12 @@ def get_numpy_data(dataset_size, number_of_bins, scale):
     bins = quantiles(y, number_of_bins)
 
     # Add noise
-    y += np.random.uniform(low=-0.2, high=0.2, size=y.shape)
+    locs = np.array([-0.2, 0.2])
+    scales = np.ones(locs.size)/1e1
+    coeffs = np.ones(locs.size)/2.0
+
+    indices = np.random.multinomial(1, coeffs, size=y.size).argmax(axis=-1)
+    y += np.random.normal(loc=locs[indices], scale=scales[indices])
 
     # Digitize
     data = quantize(y[:-1], bins)

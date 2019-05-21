@@ -78,11 +78,16 @@ def mixture_update(session, placeholder, outputs, lines, values, shape):
     """."""
     predictions = session.run(outputs, feed_dict={placeholder : values.reshape(shape)})
 
+    # Unpack values since we're only going to use batch 0 and last element -1
     means = predictions['means'][0,-1]
     inverse_standard_deviations = predictions['inverse_standard_deviations'][0,-1]
+    standard_deviations = predictions['standard_deviations'][0,-1]
     coefficients = predictions['coefficients'][0,-1]
     bins = predictions['bins']
 
+    # Bottom plot with probabilities
+    # x values are the bin mid-points
+    # y values are the probabilities of observing the value in that bin
     reshaped_bins = bins.reshape(-1, 1)
     x = 0.5*(bins[1:] + bins[:-1])
     y = 0.5*(1.0 + special.erf((reshaped_bins-means)*inverse_standard_deviations*np.sqrt(0.5)))
@@ -91,9 +96,15 @@ def mixture_update(session, placeholder, outputs, lines, values, shape):
     y = np.diff(y, axis=0)
     y = (y*coefficients).sum(axis=-1)
 
-    value = np.random.normal(means, predictions['standard_deviations'][0,-1])
-    value = (value*coefficients).sum()
+    # Top plot with the predicted values
+    index = np.random.multinomial(1, coefficients).argmax()
+    value = np.random.normal(means[index], standard_deviations[index])
 
+    # Alternate plot is mean of mixture
+    # value = means
+    # value = (value*coefficients).sum()
+
+    # Cycle new value into buffer at the end
     values[:-1] = values[1:]
     values[-1] = requantize(value, bins)
 
@@ -156,12 +167,11 @@ def main(FLAGS):
 
         plt.ion()
         fig, axes, lines = setup(n_values=shape[1], bins=bins)
-
-        while True:
-            try:
+        try:
+            while True:
                 values = update(session, placeholder, outputs, lines, values, shape)
-            finally:
-                plt.ioff()
+        finally:
+            plt.ioff()
 
     return 0
 
